@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg id="Layer_1" data-name="Layer 1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 60 60">
+  <defs>
+    <style>
+      .cls-1 {
+        letter-spacing: 0em;
+      }
+
+      .cls-2 {
+        fill: #fff;
+        font-family: MyriadPro-Bold, 'Myriad Pro';
+        font-size: 13px;
+      }
+    </style>
+  </defs>
+  <text class="cls-2" transform="translate(13.02 41.13)"><tspan class="cls-1" x="0" y="0">B</tspan><tspan x="7.8" y="0">ASIC </tspan></text>
+</svg>

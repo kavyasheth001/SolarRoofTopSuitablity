@@ -1,0 +1,93 @@
+/* styles.css */
+.circle-button {
+  background-color: #005ab0;
+  color: white;
+  border: 1px solid white;
+  cursor: pointer;
+  padding: 11px;
+  font-size: 12px;
+  height: 63%;          /* Take full height of parent */
+  width: 13%;           /* Take full width of parent */
+  display: flex;
+  border-radius: 50%;
+  align-items: center;
+  justify-content: center;
+}
+.circle-button img {
+  width: 11px;
+  height: 20px;
+  transform: scale(2);
+  object-fit: contain;
+}
+
+.measurement-tool-modal {
+    position: absolute;
+    top: 124px;
+    right: 54px;
+    width: 210px;
+    background-color: white;
+    color: black;
+    border: 1px solid #ccc;
+    border-radius: 6px;
+    z-index: 9999;
+    box-shadow: 0px 4px 8px rgba(0, 0, 0, 0.2);
+  }
+  
+  .measurement-tool-header {
+    width: 100%;
+    height: 30px;
+    background-color: #eee;
+    cursor: move;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0 5px;
+    border-top-left-radius: 6px;
+    border-top-right-radius: 6px;
+  }
+  
+  .measurement-tool-header span {
+    font-weight: bold;
+  }
+  
+  .close-button {
+    cursor: pointer;
+    color: black;
+    font-size: 15px;
+    font-weight: bold;
+  }
+  
+  .widget-container {
+    position: relative;
+    padding: 10px;
+    height: 150px; /* Adjust based on widget size */
+  }
+
+  /* Darken the glyph itself */
+.dark-basemap-icon:before,
+.dark-basemap-icon .esri-expand__icon:before {
+  color: #222;           /* deep charcoal – tweak as you like */
+}
+
+/* Optional: give the button a darker circle, too */
+.dark-basemap-icon.esri-expand__container {
+  background: #000;      /* dark background */
+}
+
+.dark-basemap-icon.esri-expand__container:hover {
+  background: #333;      /* slightly lighter on hover */
+}
+
+.esri-slider--horizontal{
+  margin-top: 20px !important; 
+}
+
+
+/* Ensure ArcGIS legend headings show */
+.esri-legend__service-label,
+.esri-legend__layer-caption {
+  display: block !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  color: black !important;
+}

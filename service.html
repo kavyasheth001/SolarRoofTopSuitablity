@@ -1,0 +1,298 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Service Request Tester</title>
+  <style>
+    body { font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, Arial; padding: 18px; background:#f6f7fb; color:#111 }
+    .container { max-width: 900px; margin: 0 auto; }
+    h1 { margin: 0 0 12px; }
+    .card { background:#fff; border-radius:10px; padding:14px; box-shadow: 0 6px 18px rgba(20,20,40,0.06); margin-bottom:12px; }
+    label { display:block; font-size:13px; margin-bottom:6px; color:#333 }
+    input[type="text"], textarea, select { width:100%; padding:8px 10px; border:1px solid #e0e5ee; border-radius:6px; font-size:14px; box-sizing:border-box }
+    textarea { min-height:80px; resize:vertical }
+    .row { display:flex; gap:12px; }
+    .col { flex:1 }
+    button { background:#0b76ef; color:white; border:none; padding:10px 14px; border-radius:8px; cursor:pointer; font-weight:600 }
+    button.secondary { background:#6b7280 }
+    .controls { display:flex; gap:8px; align-items:center; margin-top:8px; }
+    .requests-table { width:100%; border-collapse:collapse; margin-top:12px }
+    .requests-table th, .requests-table td { padding:10px 8px; border-bottom:1px solid #eef2f7; text-align:left; font-size:14px }
+    .badge { display:inline-block; padding:6px 8px; border-radius:999px; font-weight:700; font-size:12px; color:white }
+    .pending { background:#f59e0b }
+    .approved { background:#10b981 }
+    .rejected { background:#ef4444 }
+    .small { font-size:12px; color:#6b7280 }
+    .flex { display:flex; gap:8px; align-items:center }
+    .muted { color:#6b7280 }
+    .top-controls { display:flex; gap:8px; margin-bottom:8px; align-items:center }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Service Request — Tester</h1>
+
+    <div class="card">
+      <div class="top-controls">
+        <label style="margin:0;flex:0 0 auto">API Base URL</label>
+        <input id="baseUrl" type="text" placeholder="e.g. http://localhost:3000" style="width:320px" value="http://localhost:3000">
+        <label style="margin:0;flex:0 0 auto">Auth Token (Bearer)</label>
+        <input id="authToken" type="text" placeholder="Paste token here (optional)" style="width:360px">
+      </div>
+
+      <hr style="margin:10px 0 14px">
+
+      <form id="createForm" onsubmit="event.preventDefault(); createRequest();">
+        <div class="row">
+          <div class="col">
+            <label>Project Name</label>
+            <input id="projectName" type="text" required placeholder="Project / Request title">
+          </div>
+
+          <div style="width:210px">
+            <label>From User</label>
+            <select id="fromUser" required></select>
+          </div>
+
+          <div style="width:210px">
+            <label>To User</label>
+            <select id="toUser" required></select>
+          </div>
+        </div>
+
+        <label style="margin-top:10px">Description</label>
+        <textarea id="description" placeholder="Describe the request..."></textarea>
+
+        <div class="controls">
+          <button type="submit">Create Request</button>
+          <button type="button" class="secondary" onclick="getRequests()">Refresh List</button>
+          <div class="muted small" style="margin-left:auto">Tip: set Base URL / Token then press Refresh</div>
+        </div>
+      </form>
+    </div>
+
+    <div class="card">
+      <div style="display:flex; justify-content:space-between; align-items:center">
+        <h2 style="margin:0;font-size:16px">Requests</h2>
+        <div class="small muted">Click approve / reject to change status</div>
+      </div>
+
+      <table class="requests-table" id="requestsTable">
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Project</th>
+            <th>From → To</th>
+            <th>Description</th>
+            <th>Status</th>
+            <th>Created</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody id="requestsBody">
+          <tr><td colspan="7" class="small muted">No data. Click Refresh.</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="card small muted">
+      <strong>User list (sample)</strong><br>
+      If your API exposes a userss endpoint you can ignore this — otherwise these sample users are included in the selects:<br>
+      id:27 Super Admin, id:28 Manager User, id:36 lal, id:41 test
+    </div>
+  </div>
+
+  <script>
+    // --- SAMPLE USERS (from your screenshot) ---
+    // You can edit this list or let your backend provide actual users via an endpoint.
+    const sampleUsers = [
+      { id: 27, name: "Super Admin" },
+      { id: 28, name: "Manager User" },
+      { id: 36, name: "lal" },
+      { id: 41, name: "test" }
+    ];
+
+    function populateUserSelects(list) {
+      const from = document.getElementById('fromUser');
+      const to = document.getElementById('toUser');
+      from.innerHTML = '';
+      to.innerHTML = '';
+      list.forEach(u => {
+        const o1 = document.createElement('option');
+        o1.value = u.id; o1.textContent = `${u.name} (${u.id})`;
+        from.appendChild(o1);
+        const o2 = document.createElement('option');
+        o2.value = u.id; o2.textContent = `${u.name} (${u.id})`;
+        to.appendChild(o2);
+      });
+    }
+
+    // initialize selects with sample users
+    populateUserSelects(sampleUsers);
+
+    function getHeaders() {
+      const token = document.getElementById('authToken').value.trim();
+      const headers = { 'Content-Type': 'application/json' };
+      if (token) headers['Authorization'] = token.startsWith('Bearer ') ? token : 'Bearer ' + token;
+      return headers;
+    }
+
+    function baseUrl() {
+      return document.getElementById('baseUrl').value.replace(/\/+$/, '');
+    }
+
+    async function createRequest() {
+      const project_name = document.getElementById('projectName').value.trim();
+      const from_user_id = Number(document.getElementById('fromUser').value);
+      const to_user_id = Number(document.getElementById('toUser').value);
+      const description = document.getElementById('description').value.trim();
+
+      if (!project_name) return alert('Project name is required.');
+
+      try {
+        const res = await fetch(baseUrl() + '/api/service-request', {
+          method: 'POST',
+          headers: getHeaders(),
+          body: JSON.stringify({ project_name, from_user_id, to_user_id, description })
+        });
+        const json = await res.json();
+        if (!res.ok) throw new Error(json.error || JSON.stringify(json));
+        alert('Created — id: ' + json.data.id);
+        // reset description + project
+        document.getElementById('projectName').value = '';
+        document.getElementById('description').value = '';
+        getRequests();
+      } catch (err) {
+        alert('Create failed: ' + err.message);
+        console.error(err);
+      }
+    }
+
+    async function getRequests() {
+      try {
+        const res = await fetch(baseUrl() + '/api/service-request', {
+          method: 'GET',
+          headers: getHeaders()
+        });
+        const json = await res.json();
+        if (!res.ok) throw new Error(json.error || JSON.stringify(json));
+        renderRequests(json.data);
+      } catch (err) {
+        alert('Fetch failed: ' + err.message);
+        console.error(err);
+      }
+    }
+
+    function renderRequests(list) {
+      const tbody = document.getElementById('requestsBody');
+      tbody.innerHTML = '';
+      if (!Array.isArray(list) || list.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="7" class="small muted">No requests found.</td></tr>';
+        return;
+      }
+
+      list.forEach((r, i) => {
+        const tr = document.createElement('tr');
+
+        // id
+        const tdId = document.createElement('td'); tdId.textContent = r.id; tr.appendChild(tdId);
+
+        // project
+        const tdP = document.createElement('td'); tdP.textContent = r.project_name; tr.appendChild(tdP);
+
+        // from -> to (use joined names if available)
+        const tdUsers = document.createElement('td');
+        const fromName = r.from_user_name || r.from_user_id || '-';
+        const toName = r.to_user_name || r.to_user_id || '-';
+        tdUsers.innerHTML = `<div>${fromName} → ${toName}</div><div class="small muted">from:${r.from_user_id} to:${r.to_user_id}</div>`;
+        tr.appendChild(tdUsers);
+
+        // description
+        const tdDesc = document.createElement('td'); tdDesc.textContent = r.description || ''; tr.appendChild(tdDesc);
+
+        // status badge
+        const tdStatus = document.createElement('td');
+        const span = document.createElement('span');
+        span.className = 'badge ' + (r.status || 'pending');
+        span.textContent = (r.status || 'pending').toUpperCase();
+        tdStatus.appendChild(span);
+        tr.appendChild(tdStatus);
+
+        // created_at
+        const tdCreated = document.createElement('td');
+        tdCreated.textContent = r.created_at ? new Date(r.created_at).toLocaleString() : '-';
+        tr.appendChild(tdCreated);
+
+        // actions
+        const tdActions = document.createElement('td');
+        const btnApprove = document.createElement('button');
+        btnApprove.textContent = 'Approve';
+        btnApprove.style.background = '#10b981'; btnApprove.style.border = 'none'; btnApprove.style.color = 'white';
+        btnApprove.onclick = () => updateStatus(r.id, 'approved');
+
+        const btnReject = document.createElement('button');
+        btnReject.textContent = 'Reject';
+        btnReject.style.background = '#ef4444'; btnReject.style.border = 'none'; btnReject.style.color = 'white';
+        btnReject.onclick = () => updateStatus(r.id, 'rejected');
+
+        const btnPending = document.createElement('button');
+        btnPending.textContent = 'Pending';
+        btnPending.style.background = '#f59e0b'; btnPending.style.border = 'none'; btnPending.style.color = 'white';
+        btnPending.onclick = () => updateStatus(r.id, 'pending');
+
+        tdActions.appendChild(btnApprove);
+        tdActions.appendChild(document.createTextNode(' '));
+        tdActions.appendChild(btnReject);
+        tdActions.appendChild(document.createTextNode(' '));
+        tdActions.appendChild(btnPending);
+        tr.appendChild(tdActions);
+
+        tbody.appendChild(tr);
+      });
+    }
+
+    async function updateStatus(id, status) {
+      if (!confirm(`Change request ${id} -> ${status}?`)) return;
+      try {
+        const res = await fetch(baseUrl() + `/api/service-request/${id}/status`, {
+          method: 'PATCH',
+          headers: getHeaders(),
+          body: JSON.stringify({ status })
+        });
+        const json = await res.json();
+        if (!res.ok) throw new Error(json.error || JSON.stringify(json));
+        alert('Updated: ' + json.data.status);
+        getRequests();
+      } catch (err) {
+        alert('Update failed: ' + err.message);
+        console.error(err);
+      }
+    }
+
+    // optional: try to fetch actual userss list from API (if your backend exposes it)
+    async function tryLoadUsersFromApi() {
+      const url = baseUrl() + '/api/userss'; // change if your users endpoint differs
+      try {
+        const res = await fetch(url, { headers: getHeaders() });
+        if (!res.ok) return; // ignore
+        const json = await res.json();
+        if (Array.isArray(json.data) && json.data.length) {
+          // expects objects with id and name or email
+          const mapped = json.data.map(u => ({ id: u.id, name: u.name || u.email || ('user-'+u.id) }));
+          populateUserSelects(mapped);
+        }
+      } catch (e) { /* ignore */ }
+    }
+
+    // initial load
+    (function init() {
+      populateUserSelects(sampleUsers);
+      // attempt to load users from API (non-critical)
+      tryLoadUsersFromApi();
+      // you may optionally auto-refresh:
+      // getRequests();
+    })();
+  </script>
+</body>
+</html>

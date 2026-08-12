@@ -1,0 +1,11 @@
+typeid,type,subtypeid,subtype
+4,Lightpole,1,Lightpole 1
+5,Building,1,Building 1
+6,Tower,1,RoofTopTower
+9,Utilities,1,Corporate_Tent
+9,Utilities,2,Tent
+9,Utilities,3,Plainwell_Bench
+9,Utilities,4,Cell_Tower
+10,StreetLights,1,StreetLight1
+10,StreetLights,2,StreetLight2
+10,StreetLights,3,Steel_Lamppost

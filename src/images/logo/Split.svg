@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg id="Layer_1" data-name="Layer 1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 50 50">
+  <defs>
+    <style>
+      .cls-1 {
+        fill: none;
+        stroke: white;
+        stroke-miterlimit: 10;
+        stroke-width: 2px;
+      }
+    </style>
+  </defs>
+  <rect class="cls-1" x="2.25" y="4.44" width="45.49" height="41.12"/>
+  <line class="cls-1" x1="25" y1="4.44" x2="25" y2="44.68"/>
+  <line class="cls-1" x1="25.39" y1="23.92" x2="1.42" y2="23.92"/>
+</svg>

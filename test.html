@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Mail Test Page (Multi-Receiver)</title>
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+</head>
+
+<body>
+    <h2>Internal Mail Testing (Multi-Receiver + Attachment)</h2>
+
+    <!-- REGISTER USER -->
+    <div>
+        <h3>1. Register User</h3>
+        <input id="user_id" placeholder="Enter your user_id">
+        <button onclick="registerUser()">Register</button>
+    </div>
+
+    <hr>
+
+    <!-- SEND MAIL -->
+    <div>
+        <h3>2. Send Mail</h3>
+
+        <input id="sender" placeholder="Sender ID"><br><br>
+
+        <label>Receiver IDs (comma separated):</label><br>
+        <input id="receivers" placeholder="Example: 28,36,44" style="width:300px;"><br><br>
+
+        <input id="subject" placeholder="Subject"><br><br>
+        <textarea id="message" placeholder="Message"></textarea><br><br>
+
+        <label>Attachment (max 10MB):</label>
+        <input type="file" id="attachment"><br><br>
+
+        <button onclick="sendMail()">Send Mail</button>
+    </div>
+
+    <hr>
+
+    <!-- INBOX -->
+    <div>
+        <h3>3. Inbox</h3>
+        <input id="inbox_user" placeholder="User ID">
+        <button onclick="getInbox()">Load Inbox</button>
+        <pre id="inboxOutput"></pre>
+    </div>
+
+    <!-- SENT -->
+    <div>
+        <h3>4. Sent</h3>
+        <input id="sent_user" placeholder="User ID">
+        <button onclick="getSent()">Load Sent</button>
+        <pre id="sentoutput"></pre>
+    </div>
+
+    <hr>
+
+    <!-- CONVERSATION -->
+    <div>
+        <h3>5. Conversation (User1 <-> User2)</h3>
+        <input id="c1" placeholder="User1 ID">
+        <input id="c2" placeholder="User2 ID">
+        <button onclick="getConvo()">Load Conversation</button>
+        <pre id="convoOutput"></pre>
+    </div>
+
+    <hr>
+
+    <!-- DELETE MAIL -->
+    <div>
+        <h3>6. Delete Mail (Move to Trash)</h3>
+
+        <input id="del_mail_id" placeholder="Mail ID"><br><br>
+        <input id="del_user_id" placeholder="User ID who is deleting"><br><br>
+
+        <button onclick="deleteMail()">Delete Mail</button>
+
+        <pre id="deleteOutput"></pre>
+    </div>
+
+    <hr>
+
+    <!-- TRASH (DELETED MAILS) -->
+    <div>
+        <h3>7. Deleted Mail (Trash)</h3>
+
+        <input id="trash_user" placeholder="User ID">
+        <button onclick="getDeleted()">Load Deleted</button>
+
+        <pre id="trashOutput"></pre>
+    </div>
+
+    <hr>
+
+    <!-- PERMANENT DELETE -->
+    <div>
+        <h3>8. Permanent Delete From Trash (Cannot Be Undone)</h3>
+
+        <input id="perm_mail_id" placeholder="Mail ID"><br><br>
+        <input id="perm_user_id" placeholder="User ID who is deleting permanently"><br><br>
+
+        <button onclick="permanentDelete()" style="background:red;color:white;">
+            Permanently Delete Mail
+        </button>
+
+        <pre id="permOutput"></pre>
+    </div>
+
+    <hr>
+
+    <h3>Real-time Log:</h3>
+    <pre id="logBox"></pre>
+
+    <script>
+        const socket = io("https://api.mcgm.truegeomap.com");
+
+        function log(msg) {
+            document.getElementById("logBox").textContent += msg + "\n";
+        }
+
+        /* ----------------------- SOCKET.IO ---------------------------- */
+
+        function registerUser() {
+            const user_id = document.getElementById("user_id").value;
+            socket.emit("registerUser", user_id);
+            log("Registered: user_" + user_id);
+        }
+
+        socket.on("mailReceived", (mail) => {
+            log("📩 New mail received: " + JSON.stringify(mail));
+            alert("📨 New mail received!\nSubject: " + mail.subject);
+        });
+
+        /* ----------------------- SEND MAIL ---------------------------- */
+
+        async function sendMail() {
+            const file = document.getElementById("attachment").files[0];
+
+            if (file && file.size > 10 * 1024 * 1024) {
+                alert("❌ File too large! Max 10MB allowed.");
+                return;
+            }
+
+            const receivers = document.getElementById("receivers").value
+                .split(",")
+                .map(r => r.trim())
+                .filter(r => r !== "");
+
+            if (receivers.length === 0) {
+                alert("Please enter at least one receiver ID");
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append("sender_id", document.getElementById("sender").value);
+            formData.append("receiver_ids", JSON.stringify(receivers));
+            formData.append("subject", document.getElementById("subject").value);
+            formData.append("message", document.getElementById("message").value);
+
+            if (file) formData.append("attachment", file);
+
+            const res = await fetch("https://api.mcgm.truegeomap.com/api/mail/send", {
+                method: "POST",
+                body: formData
+            });
+
+            const data = await res.json();
+            log("Sent Mail: " + JSON.stringify(data));
+        }
+
+        /* ----------------------- INBOX ---------------------------- */
+
+        async function getInbox() {
+            const user_id = document.getElementById("inbox_user").value;
+            const res = await fetch("https://api.mcgm.truegeomap.com/api/mail/inbox/" + user_id);
+            const data = await res.json();
+            document.getElementById("inboxOutput").textContent = JSON.stringify(data, null, 2);
+        }
+
+        /* ----------------------- SENT ---------------------------- */
+
+        async function getSent() {
+            const user_id = document.getElementById("sent_user").value;
+            const res = await fetch("https://api.mcgm.truegeomap.com/api/mail/sent/" + user_id);
+            const data = await res.json();
+            document.getElementById("sentoutput").textContent = JSON.stringify(data, null, 2);
+        }
+
+        /* ----------------------- CONVERSATION ---------------------------- */
+
+        async function getConvo() {
+            const u1 = document.getElementById("c1").value;
+            const u2 = document.getElementById("c2").value;
+
+            const res = await fetch(`https://api.mcgm.truegeomap.com/api/mail/conversation/${u1}/${u2}`);
+            const data = await res.json();
+
+            document.getElementById("convoOutput").textContent = JSON.stringify(data, null, 2);
+        }
+
+        /* ----------------------- DELETE MAIL (SOFT DELETE) ---------------------------- */
+
+        async function deleteMail() {
+            const mail_id = document.getElementById("del_mail_id").value;
+            const user_id = document.getElementById("del_user_id").value;
+
+            const res = await fetch(`https://api.mcgm.truegeomap.com/api/mail/delete/${mail_id}/${user_id}`, {
+                method: "DELETE"
+            });
+
+            const data = await res.json();
+            document.getElementById("deleteOutput").textContent = JSON.stringify(data, null, 2);
+
+            log("Deleted Mail: " + JSON.stringify(data));
+        }
+
+        /* ----------------------- TRASH / DELETED MAIL ---------------------------- */
+
+        async function getDeleted() {
+            const user_id = document.getElementById("trash_user").value;
+
+            const res = await fetch(`https://api.mcgm.truegeomap.com/api/mail/deleted/${user_id}`);
+            const data = await res.json();
+
+            document.getElementById("trashOutput").textContent = JSON.stringify(data, null, 2);
+        }
+
+        /* ----------------------- PERMANENT DELETE ---------------------------- */
+
+        async function permanentDelete() {
+            const mail_id = document.getElementById("perm_mail_id").value;
+            const user_id = document.getElementById("perm_user_id").value;
+
+            if (!confirm("⚠️ WARNING: This mail will be permanently deleted and cannot be restored.\nContinue?")) {
+                return;
+            }
+
+            const res = await fetch(`https://api.mcgm.truegeomap.com/api/mail/permanent/${mail_id}/${user_id}`, {
+                method: "DELETE"
+            });
+
+            const data = await res.json();
+            document.getElementById("permOutput").textContent = JSON.stringify(data, null, 2);
+
+            log("PERMANENT DELETE: " + JSON.stringify(data));
+        }
+
+    </script>
+
+</body>
+</html>

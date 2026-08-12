@@ -1,0 +1,156 @@
+h3{
+    font-size: small;
+}
+
+.esri-overlay-surface{
+    border: 1px solid #0d6efd;
+}
+
+.esri-ui-top-left{
+    top: 0px;
+}
+
+.esri-ui-bottom-left{
+  top: 80px;
+  left: 790px;
+}
+
+/* Thin and beautiful scrollbar */
+::-webkit-scrollbar {
+    width: 6px; /* Thin scrollbar width */
+  }
+  
+  ::-webkit-scrollbar-track {
+    background: #f1f1f1; /* Light grey track */
+    border-radius: 10px;
+  }
+  
+  ::-webkit-scrollbar-thumb {
+    background: #888; /* Grey scrollbar */
+    border-radius: 10px; /* Rounded edges */
+  }
+  
+  ::-webkit-scrollbar-thumb:hover {
+    background: #555; /* Darker grey on hover */
+  }
+
+  .gallery{
+    top: -10px ;
+    right: 60px;
+  }
+
+ .esri-ui-top-right{
+    /* top: 95px; */
+    top: -10px;
+    right: 45px;
+    /* right: -5px; */
+ }
+
+ .esri-ui-bottom-right{
+  right: 100px;
+  bottom: -24px;
+  border: none;
+ }
+
+ .esri-ui-corner .esri-component.esri-widget--panel{
+    width: 210px;
+    height: 210px;
+    color: white;
+    background-color: #1a83fc;
+    margin-right: 90px;
+    margin-top: 30px;
+ } 
+  
+ .button-padding--shrunk{
+  background-color: #1a83fc !important;
+ }
+
+ .esri-daylight{
+  width: 270px;
+  /* background-color: #1a83fc; */
+ }
+
+ /* .esri-slider.esri-slider--horizontal{
+  background-color: #1a83fc;
+  color: white;
+ }  */
+ 
+ .esri-widget__heading{
+  color: white;
+ } 
+
+  .esri-attribution__sources{
+  display: none;
+ }
+
+ .esri-attribution {
+  display: none;
+ } 
+
+ .icon-end-empty {
+  margin-top: 15px;
+ }
+ 
+ .esri-scale-bar__bar-container{
+  padding-bottom: 10px ;
+ }
+
+ .esri-widget--button{
+  background-color: #1a83fc;
+  border: 1px solid white;
+ }
+ 
+
+ .esri-widget--button:hover {
+  background-color: orange; 
+}
+
+
+ .esri-input{
+  background-color: #1a83fc;
+  color: white;
+ }
+
+ .esri-search__form{
+  background-color: #1a83fc;
+ }
+
+ .esri-search__container{
+  background-color: #1a83fc;
+ }
+
+ .esri-search__submit-button {
+  background-color: #1a83fc;
+ }
+
+ .esri-view-height-less-than-medium .esri-popup__main-container{
+  max-width: 270px;
+  max-height: 270px;
+ }
+
+ .esri-widget--button:is(calcite-button):not(:hover) {
+  --calcite-ui-icon-color: rgb(255, 255, 255);
+}
+
+.esri-navigation-toggle calcite-button[appearance=outline-fill] {
+  --calcite-color-foreground-1: #a9bc07;
+}
+
+.text-3d {
+  color: white;
+  -webkit-text-stroke: 1px #1a83fc; /* Blue border */
+  text-shadow:
+    1px 1px 0 #1a83fc,
+    2px 2px 0 #1a83fc,
+    3px 3px 4px rgba(0, 0, 0, 0.25); /* Soft 3D depth */
+}
+
+.widget-content-wrapper {
+  padding: 0px !important
+}
+
+.esri-widget__heading{
+  display: none;
+}
+
+
