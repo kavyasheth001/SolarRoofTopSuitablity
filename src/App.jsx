@@ -40,10 +40,8 @@ function App() {
           path="/map"
           element={
             <>
-              <ProtectedRoute>
-                <PageTitle title="Map" />
-                <TwoDMap isSidebarCollapsed={!sidebarOpen} />
-              </ProtectedRoute>
+              <PageTitle title="Map" />
+              <TwoDMap isSidebarCollapsed={!sidebarOpen} />
             </>
           }
         />

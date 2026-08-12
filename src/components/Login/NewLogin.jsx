@@ -5,9 +5,7 @@ import { ToastContainer, toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import { LuRefreshCw } from "react-icons/lu";
 import { useAuth } from "../../context/AuthContext";
-import logo3 from "../../images/logo/BMC.png";
 import logo from '../../images/logo/saar.svg';
-import backgroundImage from "../../images/logo/bmcoffice.png";
 import { FaEye, FaEyeSlash } from "react-icons/fa";
 import { BeatLoader } from "react-spinners";
 import './NewLogin.css';
@@ -31,7 +29,7 @@ const NewLogin = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
-  const BASE_URL = import.meta.env.VITE_BASE_URL;
+  const BASE_URL = import.meta.env.VITE_BASE_URL || "";
 
   // ❤️ Your decoder (no jwt-decode)
   const decodeToken = (token) => {
@@ -200,11 +198,6 @@ const NewLogin = () => {
     <div className="w-full h-screen flex justify-end items-center overflow-hidden relative">
       <ToastContainer position="top-center" />
 
-      <img
-        src={backgroundImage}
-        className="absolute top-0 left-0 min-w-full min-h-full object-cover -z-10 transform"
-        alt="Background"
-      />
 
       <div className="w-full max-w-3xl h-auto bg-white bg-opacity-80 rounded-3xl shadow-2xl mx-8 overflow-hidden flex show-card">
 
@@ -322,10 +315,8 @@ const NewLogin = () => {
           <div className="flex flex-col items-center justify-center h-full text-white p-8">
             <div className="z-10 flex flex-col items-center">
               <div className="flex flex-col items-center">
-                <img style={{ width: "15rem", height: "15rem" }} src={logo3} alt="Logo" className="mx-auto mb-3 relative rounded-full transform transition-transform duration-300 hover:scale-105 hover:-translate-y-1.5" />
-                {/* Right Side text updates */}
-                <h2 className="text-xl font-bold shadow-text text-white mb-1">Welcome To</h2>
-                <h1 className="text-2xl font-extrabold text-white text-center shadow-text">3D Mumbai City</h1>
+                <h2 className="text-xl font-bold shadow-text text-white mb-1">Welcome</h2>
+                <h1 className="text-2xl font-extrabold text-white text-center shadow-text">Sign in to continue</h1>
               </div>
             </div>
           </div>
@@ -333,11 +324,6 @@ const NewLogin = () => {
       </div>
 
       <footer className="absolute bottom-0 left-0 right-0 pt-2 text-center">
-        <div className="flex justify-center items-center gap-2">
-          <span className="text-white text-sm font-medium drop-shadow-sm mb-2 bg-blue-500">
-            Brihanmumbai Municipal Corporation © All Rights Reserved.
-          </span>
-        </div>
       </footer>
     </div>
   );

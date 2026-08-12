@@ -2,7 +2,7 @@
 import React from 'react';
 import { useLocation } from 'react-router-dom';
 import { useMap } from '../../context/MapContext';
-import headerLogo from '../../images/logo/BMC.png';
+
 
 const Header = () => {
   const { pathname } = useLocation();
@@ -26,7 +26,6 @@ const Header = () => {
       <div className="flex flex-grow items-center justify-between px-4 py-2 md:px-6">
         {/* Logo */}
         <div className="flex items-center gap-4">
-           <img src={headerLogo} alt="Logo" className="h-10" />
            <span className="text-white text-lg font-semibold">Solar Rooftop Analysis</span>
         </div>
 

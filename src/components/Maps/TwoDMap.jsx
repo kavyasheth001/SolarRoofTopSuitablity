@@ -7,7 +7,7 @@ const TwoDMap = ({ isSidebarCollapsed }) => {
   const { registerQuickAccessButtonFunction, registerQuickAccessButtonState } = useMap();
   const mapContainer3DRef = useRef(null);
   const [view, setView] = useState(null);
-  
+
   const [isLoDModelEnabled, setIsLoDModelEnabled] = useState(false);
   const [isRealityModelEnabled, setIsRealityModelEnabled] = useState(false);
   const [shadowAnalysisEnabled, setShadowAnalysisEnabled] = useState(false);
@@ -35,16 +35,59 @@ const TwoDMap = ({ isSidebarCollapsed }) => {
     };
   }, []);
 
-  const toggleLoDModel = useCallback(() => {
-    if (!view || !view.map) return;
-    // Basic LOD toggle logic
-    const layer = view.map.layers.find((layer) => layer.title && layer.title.includes('LOD'));
-    if (layer) {
-      layer.visible = !layer.visible;
-      setIsLoDModelEnabled(layer.visible);
-    }
-  }, [view]);
 
+  const toggleLoDModel = () => {
+    if (!view || !view.map) return;
+
+    // Find all four LoD layers
+    const lodLayer1 = view.map.layers.find(
+      (layer) => layer.title && layer.title === 'LoD 2 without Texture',
+    );
+    const lodLayer2 = view.map.layers.find(
+      (layer) =>
+        layer.title &&
+        layer.title === 'LOD - 02 - BMC Segment 03 Without Texture',
+    );
+    const lodLayer3 = view.map.layers.find(
+      (layer) =>
+        layer.title &&
+        layer.title === 'LOD - 02 - BMC Segment 04 Without Texture',
+    );
+    const lodLayer4 = view.map.layers.find(
+      (layer) => layer.title && layer.title === 'Slum LoD 2 without Texture',
+    );
+
+    let isUpdated = false;
+
+    if (lodLayer1) {
+      lodLayer1.visible = !lodLayer1.visible;
+      isUpdated = true;
+    }
+
+    if (lodLayer2) {
+      lodLayer2.visible = !lodLayer2.visible;
+      isUpdated = true;
+    }
+
+    if (lodLayer3) {
+      lodLayer3.visible = !lodLayer3.visible;
+      isUpdated = true;
+    }
+
+    if (lodLayer4) {
+      lodLayer4.visible = !lodLayer4.visible;
+      isUpdated = true;
+    }
+
+    if (isUpdated) {
+      const anyLayerVisible = [lodLayer1, lodLayer2, lodLayer3, lodLayer4].some(
+        (layer) => layer && layer.visible,
+      );
+      setIsLoDModelEnabled(anyLayerVisible);
+    } else {
+      console.log('No LoD layers found to toggle');
+    }
+  };
   const toggleRealityModel = useCallback(() => {
     if (!view || !view.map) return;
     // Basic Reality mesh toggle logic
