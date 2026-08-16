@@ -55,6 +55,14 @@ const Header = () => {
             >
               <span className="text-sm font-medium">Shadow Analysis</span>
             </button>
+
+            <button
+              onClick={() => handleToggle('solarSuitability')}
+              className={`px-4 py-2 rounded transition-colors border border-white/20 ${getQuickAccessButtonState('solarSuitability') ? 'bg-white text-[#1e3a5f]' : 'text-white hover:bg-white/10'}`}
+              title="Toggle Solar Suitability"
+            >
+              <span className="text-sm font-medium">Solar Suitability</span>
+            </button>
           </div>
         )}
       </div>

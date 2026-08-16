@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { useMap } from '../../context/MapContext';
 import ShadowAnalysisWidget from '../Tools/ShadowAnalysisWidget';
+import SolarSuitabilityTool from '../Tools/SolarSuitabilityTool';
 import './TwoDMap.css';
 
 const TwoDMap = ({ isSidebarCollapsed }) => {
@@ -11,6 +12,7 @@ const TwoDMap = ({ isSidebarCollapsed }) => {
   const [isLoDModelEnabled, setIsLoDModelEnabled] = useState(false);
   const [isRealityModelEnabled, setIsRealityModelEnabled] = useState(false);
   const [shadowAnalysisEnabled, setShadowAnalysisEnabled] = useState(false);
+  const [solarSuitabilityEnabled, setSolarSuitabilityEnabled] = useState(false);
 
   useEffect(() => {
     if (!mapContainer3DRef.current) return;
@@ -102,6 +104,10 @@ const TwoDMap = ({ isSidebarCollapsed }) => {
     setShadowAnalysisEnabled(prev => !prev);
   }, []);
 
+  const toggleSolarSuitability = useCallback(() => {
+    setSolarSuitabilityEnabled(prev => !prev);
+  }, []);
+
   useEffect(() => {
     registerQuickAccessButtonFunction('lodModel', toggleLoDModel);
     registerQuickAccessButtonState('lodModel', isLoDModelEnabled);
@@ -117,11 +123,19 @@ const TwoDMap = ({ isSidebarCollapsed }) => {
     registerQuickAccessButtonState('shadowAnalysis', shadowAnalysisEnabled);
   }, [toggleShadowAnalysis, shadowAnalysisEnabled, registerQuickAccessButtonFunction, registerQuickAccessButtonState]);
 
+  useEffect(() => {
+    registerQuickAccessButtonFunction('solarSuitability', toggleSolarSuitability);
+    registerQuickAccessButtonState('solarSuitability', solarSuitabilityEnabled);
+  }, [toggleSolarSuitability, solarSuitabilityEnabled, registerQuickAccessButtonFunction, registerQuickAccessButtonState]);
+
   return (
     <div className={`map-wrapper ${isSidebarCollapsed ? 'expanded' : ''}`} style={{ height: '100%', width: '100%' }}>
       <div ref={mapContainer3DRef} className="map-container" style={{ height: '100%', width: '100%' }} />
       {shadowAnalysisEnabled && (
         <ShadowAnalysisWidget view={view} onClose={() => setShadowAnalysisEnabled(false)} />
+      )}
+      {solarSuitabilityEnabled && (
+        <SolarSuitabilityTool view={view} onClose={() => setSolarSuitabilityEnabled(false)} />
       )}
     </div>
   );
