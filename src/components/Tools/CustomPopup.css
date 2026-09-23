@@ -1,0 +1,47 @@
+/* Additional styles for the popup content */
+.popup-attributes {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  
+  .popup-attribute {
+    display: flex;
+    /* flex-direction: column; */
+    gap: 2px;
+  }
+  
+  .popup-attribute-key {
+    
+    font-size: 12px;
+    opacity: 0.8;
+    text-transform: uppercase;
+    white-space: normal;       /* allow wrapping */
+    word-break: break-word;    /* break really long tokens */
+    overflow-wrap: anywhere;
+  }
+  
+  .popup-attribute-value {
+    font-size: 12px;
+    word-break: break-word;
+  }
+  
+  /* Custom scrollbar for the popup content */
+  .popup-content::-webkit-scrollbar {
+    width: 6px;
+  }
+  
+  .popup-content::-webkit-scrollbar-track {
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 3px;
+  }
+  
+  .popup-content::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.3);
+    border-radius: 3px;
+  }
+  
+  .popup-content::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.5);
+  }
+  
