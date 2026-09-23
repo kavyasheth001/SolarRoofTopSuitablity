@@ -1,6 +1,8 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import Daylight from "@arcgis/core/widgets/Daylight.js";
 import Graphic from "@arcgis/core/Graphic.js";
+import GraphicsLayer from "@arcgis/core/layers/GraphicsLayer.js";
+import SketchViewModel from "@arcgis/core/widgets/Sketch/SketchViewModel.js";
 import SimpleFillSymbol from "@arcgis/core/symbols/SimpleFillSymbol.js";
 import * as geometryEngine from "@arcgis/core/geometry/geometryEngine.js";
 import SearchLocationTool from './SearchLocationTool';
@@ -76,22 +78,71 @@ const SolarSuitabilityTool = ({ view, onClose }) => {
   
   const [analysisResult, setAnalysisResult] = useState(null);
   const [isWidgetReady, setIsWidgetReady] = useState(false);
-  
+  const [savedMsg, setSavedMsg] = useState(''); // 'saving' | 'saved' | ''
+
+  // Resizable panel
+  const [panelSize, setPanelSize] = useState({ width: 340, height: 520 });
+  const resizingRef = useRef(null); // stores { startX, startY, startW, startH }
+
+  const onResizeStart = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    resizingRef.current = {
+      startX: e.clientX,
+      startY: e.clientY,
+      startW: panelSize.width,
+      startH: panelSize.height,
+    };
+    const onMove = (ev) => {
+      if (!resizingRef.current) return;
+      const { startX, startY, startW, startH } = resizingRef.current;
+      const newW = Math.max(280, Math.min(700, startW + (ev.clientX - startX)));
+      const newH = Math.max(320, Math.min(900, startH + (ev.clientY - startY)));
+      setPanelSize({ width: newW, height: newH });
+    };
+    const onUp = () => {
+      resizingRef.current = null;
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+    };
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+  };
+
   const [simulating, setSimulating] = useState(false);
   const [simulationProgress, setSimulationProgress] = useState(0);
+
+  // --- What-If Building Simulator state ---
+  const [simulatedBuildings, setSimulatedBuildings] = useState([]);
+  const [isPlacingSimBuilding, setIsPlacingSimBuilding] = useState(false);
+  const [simFloors, setSimFloors] = useState(8);
+  const [simSizeM, setSimSizeM] = useState(20);
+  const [showSimPanel, setShowSimPanel] = useState(false);
+  const [drawingInstructions, setDrawingInstructions] = useState('');
+  const sketchVMRef = useRef(null);       // SketchViewModel instance
+  const sketchLayerRef = useRef(null);    // GraphicsLayer for sketch (actual layer object)
+  const simGraphicsRef = useRef([]);      // All placed 3D extrusion graphics
 
   // Initialize tool: LOD layers & find building layer
   useEffect(() => {
     if (!view || !view.map) return;
 
-    // 1. LOD Layers handling
-    lodTitles.forEach(title => {
-      const layer = view.map.layers.find(l => l.title === title);
-      if (layer) {
-        lodOriginalVisibility.current[title] = layer.visible;
-        layer.visible = true;
-      }
-    });
+    // 1. LOD Layers: enable by title (search top-level AND inside group layers)
+    function findAndEnableLayers(layers) {
+      layers.forEach(layer => {
+        if (lodTitles.includes(layer.title)) {
+          lodOriginalVisibility.current[layer.title] = layer.visible;
+          layer.visible = true;
+          console.log(`[Solar] Enabled LOD layer: "${layer.title}"`);
+        }
+        // Also recurse into group layers
+        if (layer.layers) {
+          findAndEnableLayers(layer.layers);
+        }
+      });
+    }
+    findAndEnableLayers(view.map.layers);
+
 
     view.environment.lighting.directShadowsEnabled = true;
     view.environment.lighting.ambientOcclusionEnabled = true;
@@ -143,12 +194,16 @@ const SolarSuitabilityTool = ({ view, onClose }) => {
 
     return () => {
       // Restore LOD layers
-      lodTitles.forEach(title => {
-        const layer = view.map.layers.find(l => l.title === title);
-        if (layer && lodOriginalVisibility.current[title] !== undefined) {
-          layer.visible = lodOriginalVisibility.current[title];
-        }
-      });
+      function restoreLayers(layers) {
+        layers.forEach(layer => {
+          if (lodOriginalVisibility.current[layer.title] !== undefined) {
+            layer.visible = lodOriginalVisibility.current[layer.title];
+          }
+          if (layer.layers) restoreLayers(layer.layers);
+        });
+      }
+      restoreLayers(view.map.layers);
+
       // Destroy widget and clear graphics
       if (daylightWidgetRef.current) {
         daylightWidgetRef.current.destroy();
@@ -302,34 +357,60 @@ const SolarSuitabilityTool = ({ view, onClose }) => {
     setSelectedBuilding(feature);
     setSearchResults([]);
     setIsPicking(false);
-    
-    // Highlight
+
+    // Clear any previous highlight graphic
     view.graphics.removeAll();
     if (highlightHandleRef.current) {
       highlightHandleRef.current.remove();
       highlightHandleRef.current = null;
     }
+
+    // Draw a bright cyan filled polygon graphic on the footprint
+    // This always works for both FeatureLayer and SceneLayer picks
     try {
-      const layerView = await view.whenLayerView(buildingLayer);
-      // Use objectid for reliable highlight on queried features
-      const oid = feature.attributes?.objectid ?? feature.attributes?.OBJECTID;
-      if (oid != null) {
-        highlightHandleRef.current = layerView.highlight(oid);
-      } else {
-        highlightHandleRef.current = layerView.highlight(feature);
+      const [Graphic, SimpleFillSymbol, SimpleLineSymbol] = await Promise.all([
+        import('@arcgis/core/Graphic.js').then(m => m.default),
+        import('@arcgis/core/symbols/SimpleFillSymbol.js').then(m => m.default),
+        import('@arcgis/core/symbols/SimpleLineSymbol.js').then(m => m.default),
+      ]);
+
+      if (feature.geometry) {
+        // Filled polygon with bright cyan outline
+        const highlightGraphic = new Graphic({
+          geometry: feature.geometry,
+          symbol: new SimpleFillSymbol({
+            color: [0, 230, 255, 0.20],      // semi-transparent cyan fill
+            outline: {
+              color: [0, 230, 255, 1],        // solid cyan outline
+              width: 3,
+            },
+          }),
+        });
+        view.graphics.add(highlightGraphic);
+        highlightHandleRef.current = { remove: () => view.graphics.remove(highlightGraphic) };
       }
     } catch (err) {
-      console.warn("Highlight failed:", err);
+      console.warn('Highlight graphic failed:', err);
     }
-    
-    // Zoom
-    view.goTo({ target: feature.geometry, zoom: 18, tilt: 60 });
-    
+
+    // Zoom to building with tilt so user can see it clearly in 3D
+    if (feature.geometry) {
+      try {
+        await view.goTo(
+          { target: feature.geometry, zoom: 18, tilt: 65 },
+          { duration: 900, easing: 'ease-in-out' }
+        );
+      } catch (err) {
+        console.warn('goTo failed:', err);
+      }
+    }
+
     if (clickHandle.current) {
       clickHandle.current.remove();
       clickHandle.current = null;
     }
   };
+
 
   const enablePicking = () => {
     setIsPicking(true);
@@ -405,84 +486,87 @@ const SolarSuitabilityTool = ({ view, onClose }) => {
     };
   }
 
+  /**
+   * Convert any ring centroid to geographic lon/lat.
+   * Handles both WebMercator (3857/102100) and Geographic (4326) inputs.
+   * WebMercator uses the proper inverse Mercator formula.
+   */
+  function ringToLonLat(ring, sr) {
+    const cx = ring.reduce((s, v) => s + v[0], 0) / ring.length;
+    const cy = ring.reduce((s, v) => s + v[1], 0) / ring.length;
+    const isWM = sr && (sr.wkid === 3857 || sr.wkid === 102100 ||
+      (sr.latestWkid && (sr.latestWkid === 3857 || sr.latestWkid === 102100)));
+    if (isWM) {
+      const R = 6378137;
+      const lon = (cx / R) * (180 / Math.PI);
+      const lat = (2 * Math.atan(Math.exp(cy / R)) - Math.PI / 2) * (180 / Math.PI);
+      return { lon, lat };
+    }
+    // Already geographic
+    return { lon: cx, lat: cy };
+  }
+
+  /**
+   * Bounding-box diameter of a ring in meters.
+   * Handles WebMercator and Geographic inputs.
+   */
+  function ringDiameterM(ring, sr) {
+    const isWM = sr && (sr.wkid === 3857 || sr.wkid === 102100 ||
+      (sr.latestWkid && (sr.latestWkid === 3857 || sr.latestWkid === 102100)));
+    const xs = ring.map(v => v[0]);
+    const ys = ring.map(v => v[1]);
+    let wM, hM;
+    if (isWM) {
+      wM = Math.max(...xs) - Math.min(...xs);
+      hM = Math.max(...ys) - Math.min(...ys);
+    } else {
+      const avgLat = (Math.max(...ys) + Math.min(...ys)) / 2;
+      wM = (Math.max(...xs) - Math.min(...xs)) * 111320 * Math.cos(avgLat * Math.PI / 180);
+      hM = (Math.max(...ys) - Math.min(...ys)) * 110540;
+    }
+    return Math.sqrt(wM * wM + hM * hM);
+  }
+
   function checkShadowReach(neighbourGeom2D, nHeight, selectedGeom2D, selectedHeight, solar) {
-    if (solar.altitudeRad <= 0.087) return 0; // sun too low
+    if (solar.altitudeRad <= 0.087) return 0;
 
     const effectiveHeight = Math.max(0, nHeight - (selectedHeight || 0));
-    if (effectiveHeight <= 0) return 0; // neighbour shorter than selected
+    if (effectiveHeight <= 0) return 0;
 
     const shadowLength = effectiveHeight / Math.tan(solar.altitudeRad);
-    const shadowAzimuth = solar.azimuthRad + Math.PI; // shadow falls opposite sun
+    const shadowAzimuth = solar.azimuthRad + Math.PI;
 
     try {
       const nRing = neighbourGeom2D.rings[0];
       const sRing = selectedGeom2D.rings[0];
       if (!nRing || !sRing) return 0;
 
-      const nCx = nRing.reduce((s, v) => s + v[0], 0) / nRing.length;
-      const nCy = nRing.reduce((s, v) => s + v[1], 0) / nRing.length;
-      const sCx = sRing.reduce((s, v) => s + v[0], 0) / sRing.length;
-      const sCy = sRing.reduce((s, v) => s + v[1], 0) / sRing.length;
+      // Convert BOTH centroids to geographic lon/lat — works for any SR mix
+      const nLL = ringToLonLat(nRing, neighbourGeom2D.spatialReference);
+      const sLL = ringToLonLat(sRing, selectedGeom2D.spatialReference);
 
-      // Detect coordinate system: Web Mercator (wkid 3857/102100) coords are in meters
-      const sr = neighbourGeom2D.spatialReference;
-      const isWebMercator = sr && (sr.wkid === 3857 || sr.wkid === 102100 || sr.latestWkid === 3857);
-
-      let dx, dy;
-      if (isWebMercator) {
-        // Coordinates already in meters — use directly
-        dx = sCx - nCx;
-        dy = sCy - nCy;
-      } else {
-        // Geographic (degrees) — convert to meters
-        dx = (sCx - nCx) * 111320 * Math.cos(19.076 * Math.PI / 180);
-        dy = (sCy - nCy) * 110540;
-      }
+      // Compute distance in meters via geographic formula
+      const avgLat = (nLL.lat + sLL.lat) / 2;
+      const dx = (sLL.lon - nLL.lon) * 111320 * Math.cos(avgLat * Math.PI / 180);
+      const dy = (sLL.lat - nLL.lat) * 110540;
       const distance = Math.sqrt(dx * dx + dy * dy);
 
-      if (distance < 1) return 0; // same building
+      if (distance < 1) return 0;
 
-      // Direction FROM neighbour TO selected building
       const dirToSelected = Math.atan2(dx, dy);
-
-      // Angular difference between shadow direction and direction to selected building
       let angleDiff = Math.abs((dirToSelected - shadowAzimuth) % (2 * Math.PI));
       if (angleDiff > Math.PI) angleDiff = 2 * Math.PI - angleDiff;
+      if (angleDiff > Math.PI / 2.6) return 0;
+      if (shadowLength < distance) return 0;
 
-      if (angleDiff > Math.PI / 2.6) return 0; // ±70° arc
-
-      if (shadowLength < distance) return 0; // shadow doesn't reach
-
-      // Shadow fraction: approximate based on angular width of neighbour vs distance
-      const nXs = nRing.map(v => v[0]);
-      const nYs = nRing.map(v => v[1]);
-      let nWidthM, nDepthM;
-      if (isWebMercator) {
-        nWidthM = Math.max(...nXs) - Math.min(...nXs);
-        nDepthM = Math.max(...nYs) - Math.min(...nYs);
-      } else {
-        nWidthM = (Math.max(...nXs) - Math.min(...nXs)) * 111320 * Math.cos(19.076 * Math.PI / 180);
-        nDepthM = (Math.max(...nYs) - Math.min(...nYs)) * 110540;
-      }
-      const neighbourDiameter = Math.sqrt(nWidthM * nWidthM + nDepthM * nDepthM);
+      const neighbourDiameter = ringDiameterM(nRing, neighbourGeom2D.spatialReference);
       const angularCoverage = Math.atan2(neighbourDiameter / 2, distance);
 
-      const sXs = sRing.map(v => v[0]);
-      const sYs = sRing.map(v => v[1]);
-      let sWidthM, sDepthM;
-      if (isWebMercator) {
-        sWidthM = Math.max(...sXs) - Math.min(...sXs);
-        sDepthM = Math.max(...sYs) - Math.min(...sYs);
-      } else {
-        sWidthM = (Math.max(...sXs) - Math.min(...sXs)) * 111320 * Math.cos(19.076 * Math.PI / 180);
-        sDepthM = (Math.max(...sYs) - Math.min(...sYs)) * 110540;
-      }
-      const selectedDiameter = Math.sqrt(sWidthM * sWidthM + sDepthM * sDepthM);
+      const selectedDiameter = ringDiameterM(sRing, selectedGeom2D.spatialReference);
       const selectedAngularWidth = Math.atan2(selectedDiameter / 2, distance);
 
       const shadowFraction = Math.min(1.0, angularCoverage / Math.max(selectedAngularWidth, 0.01));
       return shadowFraction;
-
     } catch {
       return 0;
     }
@@ -538,6 +622,21 @@ const SolarSuitabilityTool = ({ view, onClose }) => {
       console.warn("Neighbour query failed:", err);
     }
 
+    // Snapshot simulated buildings — preserve the ACTUAL stored spatial reference
+    const simSnapshot = simulatedBuildings.map(sb => ({
+      attributes: { height: sb.height, no_floors: String(sb.floors) },
+      geometry: {
+        type: 'polygon',
+        rings: sb.geometry.rings,
+        spatialReference: sb.geometry.spatialReference || { wkid: 4326 },
+      },
+      _isSim: true,
+    }));
+    console.log('[SimBuilding] simSnapshot count:', simSnapshot.length,
+      simSnapshot.map(s => `h=${s.attributes.height}m SR=${s.geometry.spatialReference?.wkid}`).join(', '));
+    const allNeighbours = [...neighbourFeatures, ...simSnapshot];
+    console.log(`Simulated buildings added: ${simSnapshot.length}, total neighbours: ${allNeighbours.length}`);
+
     // --- 4. Animate the view lighting AND compute real shadow geometry per hour ---
     const today = new Date();
     const hours = Array.from({ length: 13 }, (_, i) => i + 6); // 6 to 18
@@ -565,7 +664,7 @@ const SolarSuitabilityTool = ({ view, onClose }) => {
       // Centroid-distance-angle shadow check per neighbour (no polygon ops)
       let totalShadowFraction = 0;
 
-      for (const neighbour of neighbourFeatures) {
+      for (const neighbour of allNeighbours) {
         const nAttrs = neighbour.attributes;
         let nHeight = parseFloat(nAttrs['height']) > 0 ? parseFloat(nAttrs['height']) : null;
         if (!nHeight && nAttrs['no_floors']) {
@@ -577,7 +676,7 @@ const SolarSuitabilityTool = ({ view, onClose }) => {
         const nGeom2D = {
           type: "polygon",
           rings: neighbour.geometry.rings.map(ring => ring.map(v => [v[0], v[1]])),
-          spatialReference: neighbour.geometry.spatialReference
+          spatialReference: neighbour.geometry.spatialReference || { wkid: 4326 },
         };
 
         const shadowFrac = checkShadowReach(
@@ -685,24 +784,246 @@ const SolarSuitabilityTool = ({ view, onClose }) => {
     if (clampedScore <= 40) potentialLabel = "Low Solar Potential";
     else if (clampedScore <= 70) potentialLabel = "Moderate Solar Potential";
 
+    // Compute without simulated buildings for baseline comparison
+    let baselineScore = clampedScore;
+    if (simSnapshot.length > 0) {
+      // Re-run lightweight score ignoring simulated buildings
+      let baseSunnyHours = 0;
+      for (const hrData of hourlyResults) {
+        const solar = getSolarPosition(hrData.hour);
+        if (solar.altitudeDeg < 5) continue;
+        let baseFrac = 0;
+        for (const neighbour of neighbourFeatures) {
+          const nAttrs = neighbour.attributes;
+          let nH = parseFloat(nAttrs['height']) > 0 ? parseFloat(nAttrs['height']) : null;
+          if (!nH && nAttrs['no_floors']) {
+            const mm = String(nAttrs['no_floors']).match(/(\d+)/);
+            nH = mm ? (parseInt(mm[1]) + 1) * 3 : 6;
+          }
+          if (!nH || !neighbour.geometry) continue;
+          const nGeom2D = { type: 'polygon', rings: neighbour.geometry.rings.map(r => r.map(v => [v[0], v[1]])), spatialReference: neighbour.geometry.spatialReference };
+          baseFrac = Math.min(1.0, baseFrac + checkShadowReach(nGeom2D, nH, selectedGeom2D, estimatedHeight || 0, solar));
+        }
+        if ((1 - baseFrac) * 100 > 30) baseSunnyHours++;
+      }
+      const baseSunlightScore = eligibleHours > 0 ? (baseSunnyHours / eligibleHours) * 100 : 0;
+      baselineScore = Math.max(0, Math.min(100, Math.round(
+        (baseSunlightScore * 0.50) + (areaScore * 0.20) + (heightScore * 0.10) + (irradianceScore * 0.20)
+      )));
+    }
+
+    const simImpact = simSnapshot.length > 0 ? (clampedScore - baselineScore) : null;
+
+    // --- Extended metrics for dashboard & PDF ---
+    const capacityNum = parseFloat(capacity);
+    const generationNum = parseFloat(generation);
+    // CO₂ savings: 0.82 kg per kWh (India grid emission factor)
+    const co2Saved = (generationNum * 0.82 / 1000).toFixed(2); // tonnes/yr
+    // Financial: avg tariff ₹7/unit in Mumbai
+    const annualSavings = (generationNum * 7).toFixed(0); // ₹/yr
+    // Installation cost: ₹60,000 per kWp
+    const installCost = (capacityNum * 60000).toFixed(0);
+    // Payback period
+    const paybackYears = parseFloat(annualSavings) > 0
+      ? (parseFloat(installCost) / parseFloat(annualSavings)).toFixed(1)
+      : '—';
+    // Panel count: 330W panel, 1.7m² each
+    const panelCount = Math.floor((usableArea * 0.85) / 1.7);
+    // Roof orientation classification based on score ranges
+    let suitabilityClass = 'Highly Suitable';
+    if (clampedScore < 40) suitabilityClass = 'Less Suitable';
+    else if (clampedScore < 55) suitabilityClass = 'Moderately Suitable';
+    else if (clampedScore < 70) suitabilityClass = 'Suitable';
+
     setAnalysisResult({
       score: clampedScore,
       label: potentialLabel,
+      suitabilityClass,
       sunnyHours,
       avgSunlit,
       hourlyResults,
       area: area.toFixed(1),
       usableArea: usableArea.toFixed(1),
-      floors: floors ?? "\u2014",
-      height: estimatedHeight ? estimatedHeight.toFixed(1) : "\u2014",
+      floors: floors ?? '—',
+      height: estimatedHeight ? estimatedHeight.toFixed(1) : '—',
       capacity,
       generation,
+      co2Saved,
+      annualSavings,
+      installCost,
+      paybackYears,
+      panelCount,
       neighbourCount: neighbourFeatures.length,
+      simCount: simSnapshot.length,
+      baselineScore: simSnapshot.length > 0 ? baselineScore : null,
+      simImpact,
     });
 
     setSimulating(false);
     setLoading(false);
   }
+
+  // --- Simulated building helpers ---
+
+  /**
+   * Draw a yellow 3D extruded building graphic using a polygon geometry.
+   */
+  async function drawSimBuildingGraphic(geom, floors) {
+    try {
+      const [PolygonSymbol3D, ExtrudeSymbol3DLayer] = await Promise.all([
+        import('@arcgis/core/symbols/PolygonSymbol3D.js').then(m => m.default),
+        import('@arcgis/core/symbols/ExtrudeSymbol3DLayer.js').then(m => m.default),
+      ]);
+      const heightM = floors * 3.2;
+      const graphic = new Graphic({
+        geometry: geom,
+        symbol: new PolygonSymbol3D({
+          symbolLayers: [new ExtrudeSymbol3DLayer({
+            size: heightM,
+            material: { color: [255, 200, 0, 0.70] },
+            edges: { type: 'solid', color: [200, 120, 0, 1], size: 2 },
+          })],
+        }),
+      });
+      view.graphics.add(graphic);
+      return graphic;
+    } catch (err) {
+      console.warn('[SimBuilding] Failed to draw 3D graphic:', err);
+      return null;
+    }
+  }
+
+  /**
+   * Cancel and destroy any active SketchViewModel session.
+   * Removes the sketch layer from map and resets state.
+   */
+  const cancelSketchVM = () => {
+    if (sketchVMRef.current) {
+      try { sketchVMRef.current.cancel(); } catch (e) {}
+      try { sketchVMRef.current.destroy(); } catch (e) {}
+      sketchVMRef.current = null;
+    }
+    if (sketchLayerRef.current) {
+      try {
+        sketchLayerRef.current.removeAll();
+        view.map.remove(sketchLayerRef.current);
+        sketchLayerRef.current.destroy();
+      } catch (e) {}
+      sketchLayerRef.current = null;
+    }
+    setIsPlacingSimBuilding(false);
+    setDrawingInstructions('');
+  };
+
+  /**
+   * Start free-form polygon drawing using ArcGIS SketchViewModel.
+   * Pattern matches TrueGeoMap's BuildingConstructionWidget / AssetPlacementWidget.
+   * User clicks vertices, double-clicks to finish.
+   */
+  const startDrawingPolygon = () => {
+    // Cancel any existing session first
+    cancelSketchVM();
+
+    // Capture simFloors NOW (avoid React stale closure since callback fires later)
+    const floorsAtDraw = simFloors;
+
+    // 1. Create a dedicated GraphicsLayer for the 2D sketch preview
+    const sketchLayer = new GraphicsLayer({
+      title: 'Sim Building Sketch',
+      listMode: 'hide',
+    });
+    view.map.add(sketchLayer);
+    sketchLayerRef.current = sketchLayer;
+
+    // 2. Create SketchViewModel — exact pattern from TrueGeoMap
+    const sketchVM = new SketchViewModel({
+      view,
+      layer: sketchLayer,
+      defaultCreateOptions: { hasZ: false },
+      polygonSymbol: {
+        type: 'simple-fill',
+        color: [255, 200, 0, 0.25],
+        outline: { type: 'simple-line', color: [220, 140, 0, 1], width: 2, style: 'dash' },
+      },
+    });
+    sketchVMRef.current = sketchVM;
+
+    // 3. Listen for completion
+    sketchVM.on('create', async (event) => {
+      if (event.state === 'complete') {
+        const poly = event.graphic?.geometry;
+
+        // Remove sketch preview layer before adding 3D extrusion
+        try { sketchLayer.removeAll(); view.map.remove(sketchLayer); sketchLayer.destroy(); } catch (e) {}
+        sketchLayerRef.current = null;
+        sketchVMRef.current = null;
+
+        if (!poly || !poly.rings || poly.rings.length === 0) {
+          setIsPlacingSimBuilding(false);
+          setDrawingInstructions('');
+          return;
+        }
+
+        // Store geometry with correct SR for shadow analysis
+        const geomForShadow = {
+          type: 'polygon',
+          rings: poly.rings.map(r => r.map(v => [v[0], v[1]])),
+          spatialReference: poly.spatialReference
+            ? { wkid: poly.spatialReference.wkid, latestWkid: poly.spatialReference.latestWkid }
+            : { wkid: 4326 },
+        };
+
+        console.log('[SimBuilding] Polygon complete, SR:', geomForShadow.spatialReference, 'floors:', floorsAtDraw);
+
+        // Draw the 3D yellow extrusion
+        const graphic = await drawSimBuildingGraphic(geomForShadow, floorsAtDraw);
+
+        const entry = {
+          id: Date.now(),
+          floors: floorsAtDraw,
+          height: floorsAtDraw * 3.2,
+          geometry: geomForShadow,
+          graphic,
+        };
+
+        setSimulatedBuildings(prev => [...prev, entry]);
+        simGraphicsRef.current.push(graphic);
+        setIsPlacingSimBuilding(false);
+        setDrawingInstructions('');
+
+      } else if (event.state === 'cancel') {
+        try { sketchLayer.removeAll(); view.map.remove(sketchLayer); sketchLayer.destroy(); } catch (e) {}
+        sketchLayerRef.current = null;
+        sketchVMRef.current = null;
+        setIsPlacingSimBuilding(false);
+        setDrawingInstructions('');
+      }
+    });
+
+    // 4. Start drawing
+    sketchVM.create('polygon');
+
+    setIsPlacingSimBuilding(true);
+    setDrawingInstructions('Click to add vertices · Double-click to complete polygon');
+  };
+
+
+  /** Remove one simulated building */
+  const removeSimBuilding = (id) => {
+    setSimulatedBuildings(prev => {
+      const entry = prev.find(b => b.id === id);
+      if (entry?.graphic) try { view.graphics.remove(entry.graphic); } catch (e) {}
+      return prev.filter(b => b.id !== id);
+    });
+  };
+
+  /** Remove all simulated buildings */
+  const clearAllSimBuildings = () => {
+    cancelSketchVM();
+    simGraphicsRef.current.forEach(g => { try { view.graphics.remove(g); } catch (e) {} });
+    simGraphicsRef.current = [];
+    setSimulatedBuildings([]);
+  };
 
   const runAnalysis = () => {
     if (!selectedBuilding) return;
@@ -731,6 +1052,140 @@ const SolarSuitabilityTool = ({ view, onClose }) => {
       clickHandle.current = null;
     }
     setIsPicking(false);
+    // Clear simulated buildings
+    clearAllSimBuildings();
+    setShowSimPanel(false);
+  };
+
+  /** Capture map screenshot + save analysis to localStorage */
+  const saveAnalysis = async () => {
+    if (!analysisResult || !selectedBuilding) return;
+    setSavedMsg('saving');
+    try {
+      const screenshot = await view.takeScreenshot({ width: 800, height: 500, format: 'png' });
+      const buildingName = getBuildingInfo(selectedBuilding.attributes).name || 'Unknown Building';
+      const entry = {
+        id: Date.now(),
+        timestamp: new Date().toISOString(),
+        buildingName,
+        buildingInfo: getBuildingInfo(selectedBuilding.attributes),
+        result: analysisResult,
+        mapScreenshot: screenshot.dataUrl,
+      };
+      const existing = JSON.parse(localStorage.getItem('solar_analyses') || '[]');
+      existing.unshift(entry);
+      localStorage.setItem('solar_analyses', JSON.stringify(existing.slice(0, 20))); // keep last 20
+      setSavedMsg('saved');
+      setTimeout(() => setSavedMsg(''), 3000);
+    } catch (err) {
+      console.error('[Save] Failed:', err);
+      setSavedMsg('');
+    }
+  };
+
+  /** Export current analysis as a PDF report */
+  const exportPDF = async () => {
+    if (!analysisResult || !selectedBuilding) return;
+    const { jsPDF } = await import('jspdf');
+    const html2canvas = (await import('html2canvas')).default;
+
+    const buildingName = getBuildingInfo(selectedBuilding.attributes).name || 'Building';
+    const now = new Date().toLocaleString('en-IN');
+    const r = analysisResult;
+
+    // Take map screenshot
+    const screenshot = await view.takeScreenshot({ width: 900, height: 500, format: 'png' });
+
+    const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+    const W = 210; const H = 297;
+    const margin = 14;
+    let y = 0;
+
+    // ── COVER HEADER ────────────────────────────────────────
+    pdf.setFillColor(30, 58, 95);
+    pdf.rect(0, 0, W, 38, 'F');
+    pdf.setTextColor(255, 255, 255);
+    pdf.setFontSize(22); pdf.setFont('helvetica', 'bold');
+    pdf.text('SolarSight', margin, 16);
+    pdf.setFontSize(10); pdf.setFont('helvetica', 'normal');
+    pdf.text('Solar Rooftop Suitability Analysis Report', margin, 24);
+    pdf.setFontSize(8); pdf.text(`Generated: ${now}`, margin, 31);
+    y = 44;
+
+    // ── BUILDING INFO ────────────────────────────────────────
+    pdf.setTextColor(30, 58, 95);
+    pdf.setFontSize(14); pdf.setFont('helvetica', 'bold');
+    pdf.text(buildingName, margin, y); y += 6;
+    pdf.setFontSize(9); pdf.setFont('helvetica', 'normal'); pdf.setTextColor(80, 80, 80);
+    pdf.text(`Floors: ${r.floors}   Height: ${r.height !== '—' ? r.height + ' m' : '—'}   Neighbours analysed: ${r.neighbourCount}`, margin, y); y += 5;
+    pdf.text(`Suitability Class: ${r.suitabilityClass}`, margin, y); y += 8;
+
+    // ── MAP SCREENSHOT ───────────────────────────────────────
+    pdf.addImage(screenshot.dataUrl, 'PNG', margin, y, W - margin * 2, 55);
+    y += 60;
+
+    // ── SCORE BANNER ─────────────────────────────────────────
+    const scoreColor = r.score > 70 ? [22, 163, 74] : r.score > 40 ? [217, 119, 6] : [220, 38, 38];
+    pdf.setFillColor(...scoreColor);
+    pdf.rect(margin, y, W - margin * 2, 14, 'F');
+    pdf.setTextColor(255, 255, 255); pdf.setFontSize(13); pdf.setFont('helvetica', 'bold');
+    pdf.text(`Suitability Score: ${r.score} / 100  —  ${r.label}`, margin + 4, y + 9.5);
+    y += 20;
+
+    // ── METRICS TABLE ────────────────────────────────────────
+    pdf.setTextColor(30, 58, 95); pdf.setFontSize(11); pdf.setFont('helvetica', 'bold');
+    pdf.text('Analysis Metrics', margin, y); y += 5;
+
+    const metrics = [
+      ['Sunny Hours (out of 13)', `${r.sunnyHours} hrs`],
+      ['Average Rooftop Sunlit', `${r.avgSunlit}%`],
+      ['Total Rooftop Area', `${r.area} m²`],
+      ['Usable Area (70%)', `${r.usableArea} m²`],
+      ['Estimated Panel Count', `${r.panelCount} panels (330W each)`],
+      ['Estimated Capacity', `${r.capacity} kWp`],
+      ['Estimated Annual Generation', `${r.generation} kWh/yr`],
+      ['CO₂ Emission Saved', `${r.co2Saved} tonnes/yr`],
+      ['Annual Electricity Savings', `₹${Number(r.annualSavings).toLocaleString('en-IN')}/yr`],
+      ['Installation Cost (est.)', `₹${Number(r.installCost).toLocaleString('en-IN')}`],
+      ['Estimated Payback Period', `${r.paybackYears} years`],
+    ];
+
+    metrics.forEach(([label, value], i) => {
+      const rowY = y + i * 7;
+      pdf.setFillColor(i % 2 === 0 ? 248 : 255, i % 2 === 0 ? 250 : 255, i % 2 === 0 ? 252 : 255);
+      pdf.rect(margin, rowY - 4, W - margin * 2, 7, 'F');
+      pdf.setFontSize(9); pdf.setFont('helvetica', 'normal'); pdf.setTextColor(80, 80, 80);
+      pdf.text(label, margin + 2, rowY);
+      pdf.setFont('helvetica', 'bold'); pdf.setTextColor(30, 58, 95);
+      pdf.text(value, W - margin - 2, rowY, { align: 'right' });
+    });
+    y += metrics.length * 7 + 6;
+
+    // ── WHAT-IF SECTION ──────────────────────────────────────
+    if (r.simCount > 0 && r.baselineScore !== null) {
+      pdf.setFillColor(245, 158, 11);
+      pdf.rect(margin, y, W - margin * 2, 8, 'F');
+      pdf.setTextColor(255, 255, 255); pdf.setFontSize(10); pdf.setFont('helvetica', 'bold');
+      pdf.text('⚡ What-If Impact Analysis', margin + 4, y + 5.5);
+      y += 12;
+      pdf.setFontSize(9); pdf.setFont('helvetica', 'normal'); pdf.setTextColor(80, 80, 80);
+      pdf.text(`Baseline score (without simulated buildings): ${r.baselineScore}/100`, margin + 4, y); y += 5;
+      pdf.text(`Score with ${r.simCount} simulated building(s): ${r.score}/100`, margin + 4, y); y += 5;
+      const impact = r.simImpact;
+      pdf.setFont('helvetica', 'bold'); pdf.setTextColor(impact <= -5 ? 220 : 22, impact <= -5 ? 38 : 163, impact <= -5 ? 38 : 74);
+      pdf.text(`Impact: ${impact > 0 ? '+' : ''}${impact} points`, margin + 4, y); y += 8;
+    }
+
+    // ── METHODOLOGY NOTE ────────────────────────────────────
+    if (y < H - 30) {
+      pdf.setDrawColor(200, 200, 200); pdf.line(margin, y, W - margin, y); y += 5;
+      pdf.setFontSize(7); pdf.setFont('helvetica', 'italic'); pdf.setTextColor(140, 140, 140);
+      const note = 'Methodology: Shadow simulation using solar position (azimuth/altitude) at Mumbai (19.076°N, 72.877°E). Score = 50% sunlight hours + 20% area + 10% height + 20% irradiance (fixed 92). CO₂ factor: 0.82 kg/kWh (India grid). Tariff: ₹7/unit. Install cost: ₹60,000/kWp.';
+      const lines = pdf.splitTextToSize(note, W - margin * 2);
+      pdf.text(lines, margin, y);
+    }
+
+    pdf.save(`SolarSight_Report_${buildingName.replace(/\s+/g, '_')}.pdf`);
   };
 
   const positionStyle = {
@@ -746,7 +1201,7 @@ const SolarSuitabilityTool = ({ view, onClose }) => {
     <div
       ref={contentDivRef}
       className="absolute bg-white text-gray-800 font-sans rounded-xl overflow-hidden shadow-lg z-[99] flex flex-col"
-      style={{ ...positionStyle, width: '340px', maxHeight: '520px' }}
+      style={{ ...positionStyle, width: `${panelSize.width}px`, maxHeight: `${panelSize.height}px`, position: 'absolute' }}
     >
       <div className="flex items-center justify-between bg-[#1a73e8] px-3 py-2 cursor-move select-none" onMouseDown={onDragStart}>
         <button
@@ -808,6 +1263,7 @@ const SolarSuitabilityTool = ({ view, onClose }) => {
 
           {selectedBuilding && !analysisResult && (
             <div className="space-y-4 animate-in fade-in zoom-in duration-200">
+              {/* Step 1: Building info card */}
               <div style={{
                 margin: '12px 0px',
                 padding: '12px',
@@ -817,22 +1273,109 @@ const SolarSuitabilityTool = ({ view, onClose }) => {
                 fontSize: '13px'
               }}>
                 <div style={{ fontWeight: '600', marginBottom: '8px', color: '#1e40af' }}>
-                  Building Selected
+                  ✅ Step 1: Building Selected
                 </div>
                 <div className="flex justify-between"><span className="text-gray-500">Name/ID:</span> <span className="font-medium truncate max-w-[140px]" title={getBuildingInfo(selectedBuilding.attributes).name}>{getBuildingInfo(selectedBuilding.attributes).name}</span></div>
-                <div className="flex justify-between"><span className="text-gray-500">Floors:</span> <span className="font-medium">{getBuildingInfo(selectedBuilding.attributes).floors || "—"}</span></div>
-                <div className="flex justify-between"><span className="text-gray-500">Height:</span> <span className="font-medium">{getBuildingInfo(selectedBuilding.attributes).height ? getBuildingInfo(selectedBuilding.attributes).height + " m" : "—"}</span></div>
+                <div className="flex justify-between"><span className="text-gray-500">Floors:</span> <span className="font-medium">{getBuildingInfo(selectedBuilding.attributes).floors || '—'}</span></div>
+                <div className="flex justify-between"><span className="text-gray-500">Height:</span> <span className="font-medium">{getBuildingInfo(selectedBuilding.attributes).height ? getBuildingInfo(selectedBuilding.attributes).height + ' m' : '—'}</span></div>
               </div>
-              
-              <div className="flex gap-2 pt-2">
-                <button 
-                  onClick={runAnalysis} 
+
+              {/* Step 2: Simulate Future Neighbour Buildings */}
+              <div style={{ border: '1px solid #fbbf24', borderRadius: '8px', overflow: 'hidden' }}>
+                <button
+                  onClick={() => setShowSimPanel(p => !p)}
+                  style={{
+                    width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                    padding: '10px 12px', background: '#fffbeb', border: 'none', cursor: 'pointer',
+                    fontSize: '13px', fontWeight: '600', color: '#92400e',
+                  }}
+                >
+                  <span>🏗️ Step 2: Simulate Future Buildings <span style={{ fontWeight: 400, color: '#b45309', fontSize: 11 }}>(optional)</span></span>
+                  <span style={{ fontSize: 10 }}>{showSimPanel ? '▲' : '▼'}{simulatedBuildings.length > 0 && <span style={{ marginLeft: 6, background: '#f59e0b', color: 'white', borderRadius: 10, padding: '1px 6px' }}>{simulatedBuildings.length}</span>}</span>
+                </button>
+
+                {showSimPanel && (
+                  <div style={{ padding: '12px', background: '#fffdf0', borderTop: '1px solid #fde68a' }}>
+                    <p style={{ fontSize: 11, color: '#78716c', marginBottom: 10 }}>
+                      Draw the footprint of a hypothetical building. Set floors below, then draw on map.
+                    </p>
+
+                    {/* Floors slider */}
+                    <div style={{ marginBottom: 10 }}>
+                      <label style={{ fontSize: 11, color: '#57534e', display: 'flex', justifyContent: 'space-between' }}>
+                        <span>Floors</span>
+                        <strong style={{ color: '#92400e' }}>{simFloors} floors = {(simFloors * 3.2).toFixed(0)} m tall</strong>
+                      </label>
+                      <input type="range" min={1} max={60} value={simFloors}
+                        onChange={e => setSimFloors(Number(e.target.value))}
+                        style={{ width: '100%', accentColor: '#f59e0b' }} />
+                    </div>
+
+                    {/* Draw polygon button */}
+                    {!isPlacingSimBuilding ? (
+                      <button
+                        onClick={startDrawingPolygon}
+                        style={{
+                          width: '100%', padding: '8px', borderRadius: 6, border: 'none', cursor: 'pointer',
+                          background: '#f59e0b', color: 'white', fontWeight: 600, fontSize: 12, marginBottom: 8,
+                        }}
+                      >
+                        ✏️ Draw Building Footprint on Map
+                      </button>
+                    ) : (
+                      <div style={{ marginBottom: 8 }}>
+                        <div style={{
+                          padding: '8px 10px', background: '#fef3c7', border: '1px dashed #f59e0b',
+                          borderRadius: 6, fontSize: 11, color: '#92400e', marginBottom: 6, textAlign: 'center'
+                        }}>
+                          🖊 {drawingInstructions}
+                        </div>
+                        <button
+                          onClick={cancelSketchVM}
+                          style={{
+                            width: '100%', padding: '7px', borderRadius: 6, border: 'none', cursor: 'pointer',
+                            background: '#dc2626', color: 'white', fontWeight: 600, fontSize: 12,
+                          }}
+                        >
+                          ❌ Cancel Drawing
+                        </button>
+                      </div>
+                    )}
+
+                    {/* Placed buildings list */}
+                    {simulatedBuildings.length > 0 && (
+                      <div style={{ marginTop: 4 }}>
+                        <div style={{ fontSize: 11, color: '#92400e', fontWeight: 600, marginBottom: 4 }}>Placed buildings:</div>
+                        {simulatedBuildings.map((sb, i) => (
+                          <div key={sb.id} style={{
+                            display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                            padding: '4px 8px', background: '#fef3c7', borderRadius: 4, marginBottom: 3, fontSize: 12
+                          }}>
+                            <span style={{ color: '#78350f' }}>🟡 Bldg {i + 1} — {sb.floors} floors ({sb.height.toFixed(0)}m)</span>
+                            <button onClick={() => removeSimBuilding(sb.id)}
+                              style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#dc2626', fontSize: 14 }}>🗑</button>
+                          </div>
+                        ))}
+                        <button onClick={clearAllSimBuildings}
+                          style={{ fontSize: 11, color: '#dc2626', background: 'none', border: 'none', cursor: 'pointer', padding: '2px 0' }}>
+                          🗑 Clear all simulated buildings
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* Step 3: Run Analysis */}
+              <div className="flex gap-2 pt-1">
+                <button
+                  onClick={runAnalysis}
                   disabled={loading}
                   className="flex-1 bg-green-600 hover:bg-green-700 text-white py-2 rounded-lg font-medium text-sm transition-colors shadow-sm disabled:opacity-50"
                 >
-                  {loading ? 'Computing...' : '☀️ Run Analysis'}
+                  {loading ? 'Computing...' : `☀️ Run Analysis${simulatedBuildings.length > 0 ? ` (+${simulatedBuildings.length} sim)` : ''}`}
                 </button>
-                <button 
+                <button
                   onClick={resetTool}
                   className="px-3 py-2 bg-white hover:bg-gray-50 text-gray-600 border border-gray-300 rounded-lg text-sm transition-colors shadow-sm"
                 >
@@ -846,7 +1389,7 @@ const SolarSuitabilityTool = ({ view, onClose }) => {
                     Analysing shadows: {Math.floor(6 + (simulationProgress / 100) * 12)}:00 →
                   </div>
                   <div className="w-full bg-gray-200 rounded-full h-2">
-                    <div 
+                    <div
                       className="bg-blue-600 h-2 rounded-full transition-all duration-200 ease-linear"
                       style={{ width: `${simulationProgress}%` }}
                     ></div>
@@ -871,75 +1414,182 @@ const SolarSuitabilityTool = ({ view, onClose }) => {
                 <div className="flex-1">
                   <div className="text-3xl font-extrabold text-gray-800">{analysisResult.score} <span className="text-base font-normal text-gray-400">/ 100</span></div>
                   <div className={`text-sm font-semibold mt-0.5 ${analysisResult.score > 70 ? 'text-green-600' : analysisResult.score > 40 ? 'text-amber-600' : 'text-red-600'}`}>{analysisResult.label}</div>
+                  <div style={{ fontSize: 11, color: '#6b7280', marginTop: 2 }}>
+                    Class: <strong style={{ color: '#1e3a5f' }}>{analysisResult.suitabilityClass}</strong>
+                  </div>
                 </div>
               </div>
 
+              {/* What-If Impact Card */}
+              {analysisResult.simCount > 0 && analysisResult.baselineScore !== null && (
+                <div style={{ border: '1px solid #fbbf24', borderRadius: 8, overflow: 'hidden', background: '#fffbeb' }}>
+                  <div style={{ padding: '8px 12px', background: '#f59e0b', color: 'white', fontWeight: 700, fontSize: 12, letterSpacing: '0.05em' }}>
+                    ⚡ WHAT-IF IMPACT ANALYSIS
+                  </div>
+                  <div style={{ padding: '10px 12px', fontSize: 13 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
+                      <span style={{ color: '#57534e' }}>Without simulated buildings:</span>
+                      <span style={{ fontWeight: 700, color: analysisResult.baselineScore > 70 ? '#16a34a' : analysisResult.baselineScore > 40 ? '#d97706' : '#dc2626' }}>
+                        {analysisResult.baselineScore} / 100
+                      </span>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
+                      <span style={{ color: '#57534e' }}>With {analysisResult.simCount} simulated building{analysisResult.simCount > 1 ? 's' : ''}:</span>
+                      <span style={{ fontWeight: 700, color: analysisResult.score > 70 ? '#16a34a' : analysisResult.score > 40 ? '#d97706' : '#dc2626' }}>
+                        {analysisResult.score} / 100
+                      </span>
+                    </div>
+                    <div style={{ textAlign: 'center', padding: '6px 0', borderTop: '1px solid #fde68a', fontWeight: 700, fontSize: 15,
+                      color: analysisResult.simImpact <= -5 ? '#dc2626' : analysisResult.simImpact >= 0 ? '#16a34a' : '#d97706' }}>
+                      {analysisResult.simImpact > 0 ? '+' : ''}{analysisResult.simImpact} points impact
+                      {' '}{analysisResult.simImpact <= -10 ? '🔴 High Impact' : analysisResult.simImpact <= -5 ? '🟡 Moderate Impact' : '🟢 Low Impact'}
+                    </div>
+                    <p style={{ fontSize: 10, color: '#78716c', marginTop: 6, textAlign: 'center' }}>
+                      {analysisResult.simImpact <= -5
+                        ? `The simulated building(s) would significantly reduce solar potential by creating additional shade.`
+                        : `The simulated building(s) have minimal impact on this rooftop's solar potential.`}
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {/* ── Shadow & Sunlight ── */}
+              <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.08em', color: '#1e3a5f', padding: '6px 0 2px', borderBottom: '2px solid #dbeafe' }}>
+                ☀️ SHADOW &amp; SUNLIGHT
+              </div>
               <div className="border rounded-lg overflow-hidden shadow-sm">
                 {[
-                  ['Sunny Hours', `${analysisResult.sunnyHours} / 13 hrs`],
-                  ['Avg Rooftop Sunlit', `${analysisResult.avgSunlit}%`],
-                  ['Neighbours Analysed', `${analysisResult.neighbourCount}`],
-                  ['Rooftop Area', `${analysisResult.area} m²`],
-                  ['Est. Capacity', `${analysisResult.capacity} kWp`],
-                  ['Est. Generation', `${analysisResult.generation} kWh/yr`],
+                  ['Sunny Hours (6am–6pm)', `${analysisResult.sunnyHours} / 13 hrs`],
+                  ['Avg Rooftop Sunlit %', `${analysisResult.avgSunlit}%`],
+                  ['Neighbours Analysed', `${analysisResult.neighbourCount} buildings`],
                 ].map(([label, value], i) => (
-                  <div key={label} style={{
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    padding: '8px 16px',
-                    background: i % 2 === 0 ? '#ffffff' : '#f9fafb',
-                    fontSize: '13px',
-                  }}>
+                  <div key={label} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 12px', background: i % 2 === 0 ? '#eff6ff' : '#fff', fontSize: 13 }}>
                     <span style={{ color: '#6b7280' }}>{label}</span>
-                    <span style={{ 
-                      fontWeight: '600', 
-                      color: label === 'Est. Generation' ? '#2563eb' : '#111827' 
-                    }}>{value}</span>
+                    <span style={{ fontWeight: 700, color: '#1e40af' }}>{value}</span>
                   </div>
                 ))}
               </div>
 
-              <div className="space-y-2">
-                <div style={{ 
-                  fontSize: '11px', 
-                  fontWeight: '600', 
-                  letterSpacing: '0.08em',
-                  color: '#6b7280', 
-                  padding: '10px 16px 4px',
-                  borderTop: '1px solid #e5e7eb',
-                  marginTop: '8px'
-                }}>
-                  VISUAL ANALYSIS
-                </div>
-                <div 
-                  ref={widgetContainerRef} 
-                  className="esri-widget daylight-container overflow-hidden bg-gray-50"
-                  style={{
-                    width: '100%',
-                    minHeight: '280px',
-                    padding: 0,
-                    margin: 0,
-                    background: 'transparent',
-                    position: 'relative',
-                  }}
-                >
-                  {!isWidgetReady && (
-                    <div className="absolute inset-0 flex items-center justify-center text-gray-400 text-xs">
-                      Loading daylight widget...
-                    </div>
-                  )}
-                </div>
+              {/* ── Rooftop & Panels ── */}
+              <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.08em', color: '#1e3a5f', padding: '6px 0 2px', borderBottom: '2px solid #dcfce7' }}>
+                🏠 ROOFTOP &amp; PANEL PLACEMENT
+              </div>
+              <div className="border rounded-lg overflow-hidden shadow-sm">
+                {[
+                  ['Total Rooftop Area', `${analysisResult.area} m²`],
+                  ['Usable Area (70%)', `${analysisResult.usableArea} m²`],
+                  ['Est. Panel Count', `${analysisResult.panelCount} panels`],
+                  ['Panel Rating', '330 W each'],
+                  ['Floors / Height', `${analysisResult.floors} / ${analysisResult.height !== '—' ? analysisResult.height + ' m' : '—'}`],
+                ].map(([label, value], i) => (
+                  <div key={label} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 12px', background: i % 2 === 0 ? '#f0fdf4' : '#fff', fontSize: 13 }}>
+                    <span style={{ color: '#6b7280' }}>{label}</span>
+                    <span style={{ fontWeight: 700, color: '#15803d' }}>{value}</span>
+                  </div>
+                ))}
               </div>
 
-              <button 
+              {/* ── Energy Potential ── */}
+              <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.08em', color: '#1e3a5f', padding: '6px 0 2px', borderBottom: '2px solid #fef9c3' }}>
+                ⚡ SOLAR ENERGY POTENTIAL
+              </div>
+              <div className="border rounded-lg overflow-hidden shadow-sm">
+                {[
+                  ['Installed Capacity', `${analysisResult.capacity} kWp`],
+                  ['Annual Generation', `${analysisResult.generation} kWh/yr`],
+                  ['Solar Irradiance', '~1500 kWh/kWp (Mumbai)'],
+                ].map(([label, value], i) => (
+                  <div key={label} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 12px', background: i % 2 === 0 ? '#fefce8' : '#fff', fontSize: 13 }}>
+                    <span style={{ color: '#6b7280' }}>{label}</span>
+                    <span style={{ fontWeight: 700, color: '#b45309' }}>{value}</span>
+                  </div>
+                ))}
+              </div>
+
+              {/* ── Financial & Environmental ── */}
+              <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.08em', color: '#1e3a5f', padding: '6px 0 2px', borderBottom: '2px solid #fce7f3' }}>
+                💰 FINANCIAL &amp; ENVIRONMENTAL
+              </div>
+              <div className="border rounded-lg overflow-hidden shadow-sm">
+                {[
+                  ['Annual Savings', `₹${Number(analysisResult.annualSavings).toLocaleString('en-IN')}/yr`],
+                  ['Installation Cost', `₹${Number(analysisResult.installCost).toLocaleString('en-IN')}`],
+                  ['Payback Period', `${analysisResult.paybackYears} years`],
+                  ['CO₂ Saved', `${analysisResult.co2Saved} tonnes/yr`],
+                ].map(([label, value], i) => (
+                  <div key={label} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 12px', background: i % 2 === 0 ? '#fdf2f8' : '#fff', fontSize: 13 }}>
+                    <span style={{ color: '#6b7280' }}>{label}</span>
+                    <span style={{ fontWeight: 700, color: '#be185d' }}>{value}</span>
+                  </div>
+                ))}
+              </div>
+
+              {/* ── Daylight Widget ── */}
+              <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.08em', color: '#6b7280', padding: '10px 0 4px', borderTop: '1px solid #e5e7eb' }}>
+                VISUAL ANALYSIS
+              </div>
+              <div
+                ref={widgetContainerRef}
+                className="esri-widget daylight-container overflow-hidden bg-gray-50"
+                style={{ width: '100%', minHeight: '280px', padding: 0, margin: 0, background: 'transparent', position: 'relative' }}
+              >
+                {!isWidgetReady && (
+                  <div className="absolute inset-0 flex items-center justify-center text-gray-400 text-xs">
+                    Loading daylight widget...
+                  </div>
+                )}
+              </div>
+
+              {/* ── Action Buttons ── */}
+              <div style={{ display: 'flex', gap: 8, paddingTop: 4 }}>
+                <button
+                  onClick={exportPDF}
+                  style={{ flex: 1, padding: '9px 0', borderRadius: 7, border: 'none', cursor: 'pointer', background: '#1e3a5f', color: 'white', fontWeight: 700, fontSize: 13 }}
+                >
+                  📄 Export PDF
+                </button>
+                <button
+                  onClick={saveAnalysis}
+                  disabled={savedMsg === 'saving'}
+                  style={{ flex: 1, padding: '9px 0', borderRadius: 7, border: 'none', cursor: 'pointer', background: savedMsg === 'saved' ? '#16a34a' : '#2563eb', color: 'white', fontWeight: 700, fontSize: 13, opacity: savedMsg === 'saving' ? 0.6 : 1 }}
+                >
+                  {savedMsg === 'saving' ? '⏳ Saving...' : savedMsg === 'saved' ? '✅ Saved!' : '💾 Save Analysis'}
+                </button>
+              </div>
+
+              <button
                 onClick={resetTool}
                 className="w-full py-2 bg-white hover:bg-gray-50 text-gray-700 rounded-lg font-medium text-sm border border-gray-300 shadow-sm transition-colors"
               >
-                Start Over
+                🔄 Start Over
               </button>
             </div>
           )}
         </div>
+      </div>
+
+      {/* ── Resize grip (bottom-right corner) ── */}
+      <div
+        onMouseDown={onResizeStart}
+        title="Drag to resize"
+        style={{
+          position: 'absolute',
+          bottom: 0,
+          right: 0,
+          width: 18,
+          height: 18,
+          cursor: 'nwse-resize',
+          zIndex: 200,
+          display: 'flex',
+          alignItems: 'flex-end',
+          justifyContent: 'flex-end',
+          padding: '3px',
+          opacity: 0.45,
+        }}
+      >
+        <svg width="10" height="10" viewBox="0 0 10 10" fill="#1a73e8">
+          <path d="M9 1L1 9M5 1L1 5M9 5L5 9" stroke="#1a73e8" strokeWidth="1.5" strokeLinecap="round"/>
+        </svg>
       </div>
     </div>
   );

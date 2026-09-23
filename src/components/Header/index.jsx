@@ -1,11 +1,12 @@
 "use client";
 import React from 'react';
-import { useLocation } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { useMap } from '../../context/MapContext';
 
 
 const Header = () => {
   const { pathname } = useLocation();
+  const navigate = useNavigate();
   const isMapRoute = pathname === "/map" || pathname === "/";
   
   const {
@@ -62,6 +63,30 @@ const Header = () => {
               title="Toggle Solar Suitability"
             >
               <span className="text-sm font-medium">Solar Suitability</span>
+            </button>
+
+            <button
+              onClick={() => handleToggle('identify')}
+              className={`px-4 py-2 rounded transition-colors border border-white/20 ${getQuickAccessButtonState('identify') ? 'bg-white text-[#1e3a5f]' : 'text-white hover:bg-white/10'}`}
+              title="Identify features by clicking on the map"
+            >
+              <span className="text-sm font-medium">Identify</span>
+            </button>
+
+            {/* Dashboard button — always visible on map route */}
+            <button
+              onClick={() => navigate('/dashboard')}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 6,
+                padding: '7px 14px', borderRadius: 7,
+                background: 'linear-gradient(135deg, #2563eb, #7c3aed)',
+                border: 'none', color: 'white', fontWeight: 700, fontSize: 13,
+                cursor: 'pointer', boxShadow: '0 2px 12px rgba(37,99,235,0.4)',
+                whiteSpace: 'nowrap',
+              }}
+              title="Open SolarSight Dashboard"
+            >
+              📊 Dashboard
             </button>
           </div>
         )}

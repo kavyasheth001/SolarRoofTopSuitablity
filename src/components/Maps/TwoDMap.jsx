@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { useMap } from '../../context/MapContext';
 import ShadowAnalysisWidget from '../Tools/ShadowAnalysisWidget';
 import SolarSuitabilityTool from '../Tools/SolarSuitabilityTool';
+import SceneIdentifyTool from '../Tools/SceneIdentifyTool';
 import './TwoDMap.css';
 
 const TwoDMap = ({ isSidebarCollapsed }) => {
@@ -13,6 +14,7 @@ const TwoDMap = ({ isSidebarCollapsed }) => {
   const [isRealityModelEnabled, setIsRealityModelEnabled] = useState(false);
   const [shadowAnalysisEnabled, setShadowAnalysisEnabled] = useState(false);
   const [solarSuitabilityEnabled, setSolarSuitabilityEnabled] = useState(false);
+  const [identifyEnabled, setIdentifyEnabled] = useState(false);
 
   useEffect(() => {
     if (!mapContainer3DRef.current) return;
@@ -108,6 +110,10 @@ const TwoDMap = ({ isSidebarCollapsed }) => {
     setSolarSuitabilityEnabled(prev => !prev);
   }, []);
 
+  const toggleIdentify = useCallback(() => {
+    setIdentifyEnabled(prev => !prev);
+  }, []);
+
   useEffect(() => {
     registerQuickAccessButtonFunction('lodModel', toggleLoDModel);
     registerQuickAccessButtonState('lodModel', isLoDModelEnabled);
@@ -128,6 +134,11 @@ const TwoDMap = ({ isSidebarCollapsed }) => {
     registerQuickAccessButtonState('solarSuitability', solarSuitabilityEnabled);
   }, [toggleSolarSuitability, solarSuitabilityEnabled, registerQuickAccessButtonFunction, registerQuickAccessButtonState]);
 
+  useEffect(() => {
+    registerQuickAccessButtonFunction('identify', toggleIdentify);
+    registerQuickAccessButtonState('identify', identifyEnabled);
+  }, [toggleIdentify, identifyEnabled, registerQuickAccessButtonFunction, registerQuickAccessButtonState]);
+
   return (
     <div className={`map-wrapper ${isSidebarCollapsed ? 'expanded' : ''}`} style={{ height: '100%', width: '100%' }}>
       <div ref={mapContainer3DRef} className="map-container" style={{ height: '100%', width: '100%' }} />
@@ -136,6 +147,13 @@ const TwoDMap = ({ isSidebarCollapsed }) => {
       )}
       {solarSuitabilityEnabled && (
         <SolarSuitabilityTool view={view} onClose={() => setSolarSuitabilityEnabled(false)} />
+      )}
+      {view && (
+        <SceneIdentifyTool
+          view={view}
+          enabled={identifyEnabled}
+          onClose={() => setIdentifyEnabled(false)}
+        />
       )}
     </div>
   );

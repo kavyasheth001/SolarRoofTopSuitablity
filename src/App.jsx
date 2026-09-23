@@ -4,6 +4,7 @@ import Loader from './common/Loader';
 import PageTitle from './components/PageTitle';
 import NewLogin from './components/Login/NewLogin';
 import TwoDMap from './components/Maps/TwoDMap';
+import SolarDashboard from './pages/SolarDashboard';
 import ProtectedRoute from './ProtectedRoute';
 import DefaultLayout from './layout/DefaultLayout';
 
@@ -21,7 +22,7 @@ function App() {
     setTimeout(() => setLoading(false), 1000);
   }, []);
 
-  const excludedRoutes = ['/'];
+  const excludedRoutes = ['/', '/dashboard'];
   const isExcludedRoute = excludedRoutes.includes(pathname);
 
   const appContent = (
@@ -42,6 +43,15 @@ function App() {
             <>
               <PageTitle title="Map" />
               <TwoDMap isSidebarCollapsed={!sidebarOpen} />
+            </>
+          }
+        />
+        <Route
+          path="/dashboard"
+          element={
+            <>
+              <PageTitle title="SolarSight Dashboard" />
+              <SolarDashboard />
             </>
           }
         />
