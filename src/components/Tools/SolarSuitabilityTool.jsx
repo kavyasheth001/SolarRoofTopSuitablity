@@ -271,6 +271,10 @@ const SolarSuitabilityTool = ({ view, onClose }) => {
   const [searchResults, setSearchResults] = useState([]);
   
   const [selectedBuilding, setSelectedBuilding] = useState(null);
+  const [analysisMode, setAnalysisMode] = useState('existing');
+  const [designedBuilding, setDesignedBuilding] = useState(null);
+  const [isDrawingDesigned, setIsDrawingDesigned] = useState(false);
+  const [designedFloors, setDesignedFloors] = useState(3);
   const [isPicking, setIsPicking] = useState(false);
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
@@ -736,63 +740,80 @@ const SolarSuitabilityTool = ({ view, onClose }) => {
     return Math.sqrt(wM * wM + hM * hM);
   }
 
-  function checkShadowReach(neighbourGeom2D, nHeight, selectedGeom2D, selectedHeight, solar) {
-    if (solar.altitudeRad <= 0.087) return 0;
+  /**
+   * Compute the shadow polygon cast by a neighbour building at the rooftop
+   * level of the selected building. Returns a polygon geometry or null.
+   *
+   * The shadow polygon is formed by the original footprint vertices
+   * connected to the shadow-projected (shifted) vertices. This captures
+   * both roof and wall shadows accurately.
+   */
+  function computeShadowPolygon(neighbourGeom2D, nHeight, selectedHeight, solar) {
+    if (solar.altitudeRad <= 0.087) return null; // sun below ~5°
 
     const effectiveHeight = Math.max(0, nHeight - (selectedHeight || 0));
-    if (effectiveHeight <= 0) return 0;
+    if (effectiveHeight <= 0) return null;
 
     const shadowLength = effectiveHeight / Math.tan(solar.altitudeRad);
-    const shadowAzimuth = solar.azimuthRad + Math.PI;
+    const shadowAzimuth = solar.azimuthRad + Math.PI; // shadow falls opposite to sun
+
+    // Shadow offset in metres
+    const dxM = shadowLength * Math.sin(shadowAzimuth);
+    const dyM = shadowLength * Math.cos(shadowAzimuth);
+
+    // Convert metres to coordinate units
+    const sr = neighbourGeom2D.spatialReference;
+    const isWM = sr && (sr.wkid === 3857 || sr.wkid === 102100 ||
+      (sr.latestWkid && (sr.latestWkid === 3857 || sr.latestWkid === 102100)));
+
+    let dxC, dyC;
+    if (isWM) {
+      dxC = dxM;
+      dyC = dyM;
+    } else {
+      // Geographic (4326): convert metres to degrees
+      const ring = neighbourGeom2D.rings[0];
+      const avgLat = ring.reduce((s, v) => s + v[1], 0) / ring.length;
+      dxC = dxM / (111320 * Math.cos(avgLat * Math.PI / 180));
+      dyC = dyM / 110540;
+    }
 
     try {
-      const nRing = neighbourGeom2D.rings[0];
-      const sRing = selectedGeom2D.rings[0];
-      if (!nRing || !sRing) return 0;
+      const ring = neighbourGeom2D.rings[0];
+      if (!ring || ring.length < 3) return null;
 
-      // Convert BOTH centroids to geographic lon/lat — works for any SR mix
-      const nLL = ringToLonLat(nRing, neighbourGeom2D.spatialReference);
-      const sLL = ringToLonLat(sRing, selectedGeom2D.spatialReference);
+      const original = ring.map(v => [v[0], v[1]]);
+      const shifted  = ring.map(v => [v[0] + dxC, v[1] + dyC]);
 
-      // Compute distance in meters via geographic formula
-      const avgLat = (nLL.lat + sLL.lat) / 2;
-      const dx = (sLL.lon - nLL.lon) * 111320 * Math.cos(avgLat * Math.PI / 180);
-      const dy = (sLL.lat - nLL.lat) * 110540;
-      const distance = Math.sqrt(dx * dx + dy * dy);
+      // Shadow polygon = original footprint → shifted footprint (reversed)
+      const shadowRing = [...original, ...shifted.slice().reverse()];
+      shadowRing.push(original[0]); // close the ring
 
-      if (distance < 1) return 0;
-
-      const dirToSelected = Math.atan2(dx, dy);
-      let angleDiff = Math.abs((dirToSelected - shadowAzimuth) % (2 * Math.PI));
-      if (angleDiff > Math.PI) angleDiff = 2 * Math.PI - angleDiff;
-      if (angleDiff > Math.PI / 2.6) return 0;
-      if (shadowLength < distance) return 0;
-
-      const neighbourDiameter = ringDiameterM(nRing, neighbourGeom2D.spatialReference);
-      const angularCoverage = Math.atan2(neighbourDiameter / 2, distance);
-
-      const selectedDiameter = ringDiameterM(sRing, selectedGeom2D.spatialReference);
-      const selectedAngularWidth = Math.atan2(selectedDiameter / 2, distance);
-
-      const shadowFraction = Math.min(1.0, angularCoverage / Math.max(selectedAngularWidth, 0.01));
-      return shadowFraction;
+      return {
+        type: 'polygon',
+        rings: [shadowRing],
+        spatialReference: sr,
+      };
     } catch {
-      return 0;
+      return null;
     }
   }
 
-  async function runShadowAnalysis() {
+  async function runShadowAnalysis(designedOverride = null) {
+    const targetBuilding = designedOverride || selectedBuilding;
+    if (!targetBuilding) return;
+
     setSimulating(true);
 
     // Get the dayOfYear from selected season
     const seasonDayOfYear = seasonOptions.find(s => s.id === selectedSeason)?.dayOfYear || null;
     setSimulationProgress(0);
 
-    const attrs = selectedBuilding.attributes;
+    const attrs = targetBuilding.attributes;
 
     // --- 1. Get selected building geometry and area ---
     // Flatten selectedGeom to 2D so geometryEngine.intersect works with shadow polygons
-    const rawGeom = selectedBuilding.geometry;
+    const rawGeom = targetBuilding.geometry;
     const selectedGeom2D = {
       type: "polygon",
       rings: rawGeom.rings.map(ring => ring.map(v => [v[0], v[1]])),
@@ -873,8 +894,8 @@ const SolarSuitabilityTool = ({ view, onClose }) => {
         continue;
       }
 
-      // Centroid-distance-angle shadow check per neighbour (no polygon ops)
-      let totalShadowFraction = 0;
+      // --- Polygon-based shadow analysis for this hour ---
+      const shadowPolygons = [];
 
       for (const neighbour of allNeighbours) {
         const nAttrs = neighbour.attributes;
@@ -891,65 +912,43 @@ const SolarSuitabilityTool = ({ view, onClose }) => {
           spatialReference: neighbour.geometry.spatialReference || { wkid: 4326 },
         };
 
-        const shadowFrac = checkShadowReach(
-          nGeom2D, nHeight, selectedGeom2D, estimatedHeight || 0, solar
-        );
-        totalShadowFraction = Math.min(1.0, totalShadowFraction + shadowFrac);
+        const shadowPoly = computeShadowPolygon(nGeom2D, nHeight, estimatedHeight || 0, solar);
+        if (shadowPoly) shadowPolygons.push(shadowPoly);
       }
 
-      // Debug logging at key hours
+      // Compute shadow fraction via polygon union + intersection
+      let totalShadowFraction = 0;
+      if (shadowPolygons.length > 0) {
+        try {
+          // Union all shadow polygons, then intersect once with the target rooftop
+          const combinedShadow = shadowPolygons.length === 1
+            ? shadowPolygons[0]
+            : geometryEngine.union(shadowPolygons);
+          const intersection = geometryEngine.intersect(combinedShadow, selectedGeom2D);
+          if (intersection) {
+            const intersectArea = Math.abs(geometryEngine.geodesicArea(intersection, 'square-meters'));
+            totalShadowFraction = Math.min(1.0, intersectArea / Math.max(area, 1));
+          }
+        } catch (unionErr) {
+          // Fallback: intersect each shadow polygon individually and sum
+          for (const sp of shadowPolygons) {
+            try {
+              const inter = geometryEngine.intersect(sp, selectedGeom2D);
+              if (inter) {
+                const iArea = Math.abs(geometryEngine.geodesicArea(inter, 'square-meters'));
+                totalShadowFraction = Math.min(1.0, totalShadowFraction + iArea / Math.max(area, 1));
+              }
+            } catch {}
+          }
+        }
+      }
+
+      // Debug at key hours
       if (hour === 8 || hour === 12 || hour === 16) {
-        console.log(`=== HOUR ${hour} DEBUG ===`);
-        console.log(`Sun altitude: ${solar.altitudeDeg.toFixed(1)}°, azimuth: ${(solar.azimuthRad * 180/Math.PI).toFixed(1)}°`);
-        console.log(`Shadow direction: ${((solar.azimuthRad + Math.PI) * 180/Math.PI).toFixed(1)}°`);
-        console.log(`Selected height: ${estimatedHeight}m, area: ${area.toFixed(0)}m²`);
-        console.log(`Neighbours returned: ${neighbourFeatures.length}`);
-        
-        // Log top 5 tallest neighbours, plus any that cast a shadow
-        neighbourFeatures.forEach((n, idx) => {
-          const nA = n.attributes;
-          let nH = parseFloat(nA['height']) > 0 ? parseFloat(nA['height']) : null;
-          if (!nH && nA['no_floors']) {
-            const m = String(nA['no_floors']).match(/(\d+)/);
-            nH = m ? (parseInt(m[1]) + 1) * 3 : null;
-          }
-          const nGeom2D = n.geometry ? {
-            type:"polygon", rings: n.geometry.rings.map(r=>r.map(v=>[v[0],v[1]])),
-            spatialReference: n.geometry.spatialReference
-          } : null;
-          let dist = null;
-          let shadowFracLog = 0;
-          let effLog = 0;
-          let angleDiffLog = 0;
-          let shadowLengthLog = 0;
-          if (nGeom2D && selectedGeom2D) {
-            const nr = nGeom2D.rings[0]; const sr = selectedGeom2D.rings[0];
-            const nCx = nr.reduce((s,v)=>s+v[0],0)/nr.length;
-            const nCy = nr.reduce((s,v)=>s+v[1],0)/nr.length;
-            const sCx = sr.reduce((s,v)=>s+v[0],0)/sr.length;
-            const sCy = sr.reduce((s,v)=>s+v[1],0)/sr.length;
-            const isWM = nGeom2D.spatialReference && (nGeom2D.spatialReference.wkid === 3857 || nGeom2D.spatialReference.wkid === 102100 || nGeom2D.spatialReference.latestWkid === 3857);
-            const ddx = isWM ? sCx - nCx : (sCx - nCx) * 111320 * Math.cos(19.076 * Math.PI / 180);
-            const ddy = isWM ? sCy - nCy : (sCy - nCy) * 110540;
-            dist = Math.sqrt(ddx*ddx+ddy*ddy);
-            
-            effLog = nH ? Math.max(0, nH-(estimatedHeight||0)) : 0;
-            shadowLengthLog = solar.altitudeRad > 0 ? effLog / Math.tan(solar.altitudeRad) : 0;
-            
-            const dirToSelected = Math.atan2(ddx, ddy);
-            const shadowAzimuth = solar.azimuthRad + Math.PI;
-            angleDiffLog = Math.abs((dirToSelected - shadowAzimuth) % (2 * Math.PI));
-            if (angleDiffLog > Math.PI) angleDiffLog = 2 * Math.PI - angleDiffLog;
-            
-            shadowFracLog = checkShadowReach(nGeom2D, nH, selectedGeom2D, estimatedHeight||0, solar);
-          }
-          
-          if (idx < 5 || shadowFracLog > 0) {
-            console.log(`  N${idx}: height=${nH}m, effH=${effLog.toFixed(1)}m, dist=${dist?dist.toFixed(0):'?'}m, shadowLen=${shadowLengthLog.toFixed(1)}m, angDiff=${(angleDiffLog*180/Math.PI).toFixed(1)}° => frac=${shadowFracLog.toFixed(3)}`);
-          }
-        });
-        console.log(`Total shadow fraction at hour ${hour}: ${totalShadowFraction.toFixed(3)}`);
-        console.log(`sunlitPct at hour ${hour}: ${(Math.max(0,(1-totalShadowFraction)*100)).toFixed(1)}%`);
+        console.log(`=== HOUR ${hour} ===`);
+        console.log(`Sun alt: ${solar.altitudeDeg.toFixed(1)}°, azimuth: ${(solar.azimuthRad * 180/Math.PI).toFixed(1)}°`);
+        console.log(`Shadow polygons built: ${shadowPolygons.length}`);
+        console.log(`Shadow fraction: ${totalShadowFraction.toFixed(3)} → sunlit: ${((1-totalShadowFraction)*100).toFixed(1)}%`);
       }
 
       const sunlitPct = Math.max(0, (1 - totalShadowFraction) * 100);
@@ -999,12 +998,12 @@ const SolarSuitabilityTool = ({ view, onClose }) => {
     // Compute without simulated buildings for baseline comparison
     let baselineScore = clampedScore;
     if (simSnapshot.length > 0) {
-      // Re-run lightweight score ignoring simulated buildings
+      // Re-run score ignoring simulated buildings (polygon-based)
       let baseSunnyHours = 0;
       for (const hrData of hourlyResults) {
         const solar = getSolarPosition(hrData.hour, seasonDayOfYear);
         if (solar.altitudeDeg < 5) continue;
-        let baseFrac = 0;
+        const baseShadows = [];
         for (const neighbour of neighbourFeatures) {
           const nAttrs = neighbour.attributes;
           let nH = parseFloat(nAttrs['height']) > 0 ? parseFloat(nAttrs['height']) : null;
@@ -1014,7 +1013,23 @@ const SolarSuitabilityTool = ({ view, onClose }) => {
           }
           if (!nH || !neighbour.geometry) continue;
           const nGeom2D = { type: 'polygon', rings: neighbour.geometry.rings.map(r => r.map(v => [v[0], v[1]])), spatialReference: neighbour.geometry.spatialReference };
-          baseFrac = Math.min(1.0, baseFrac + checkShadowReach(nGeom2D, nH, selectedGeom2D, estimatedHeight || 0, solar));
+          const sp = computeShadowPolygon(nGeom2D, nH, estimatedHeight || 0, solar);
+          if (sp) baseShadows.push(sp);
+        }
+        let baseFrac = 0;
+        if (baseShadows.length > 0) {
+          try {
+            const combined = baseShadows.length === 1 ? baseShadows[0] : geometryEngine.union(baseShadows);
+            const inter = geometryEngine.intersect(combined, selectedGeom2D);
+            if (inter) baseFrac = Math.min(1.0, Math.abs(geometryEngine.geodesicArea(inter, 'square-meters')) / Math.max(area, 1));
+          } catch {
+            for (const sp of baseShadows) {
+              try {
+                const inter = geometryEngine.intersect(sp, selectedGeom2D);
+                if (inter) baseFrac = Math.min(1.0, baseFrac + Math.abs(geometryEngine.geodesicArea(inter, 'square-meters')) / Math.max(area, 1));
+              } catch {}
+            }
+          }
         }
         if ((1 - baseFrac) * 100 > 30) baseSunnyHours++;
       }
@@ -1081,20 +1096,21 @@ const SolarSuitabilityTool = ({ view, onClose }) => {
   /**
    * Draw a yellow 3D extruded building graphic using a polygon geometry.
    */
-  async function drawSimBuildingGraphic(geom, floors) {
+  async function drawSimBuildingGraphic(geom, floors, mode = 'sim') {
     try {
       const [PolygonSymbol3D, ExtrudeSymbol3DLayer] = await Promise.all([
         import('@arcgis/core/symbols/PolygonSymbol3D.js').then(m => m.default),
         import('@arcgis/core/symbols/ExtrudeSymbol3DLayer.js').then(m => m.default),
       ]);
       const heightM = floors * 3.2;
+      const isDesigned = mode === 'designed';
       const graphic = new Graphic({
         geometry: geom,
         symbol: new PolygonSymbol3D({
           symbolLayers: [new ExtrudeSymbol3DLayer({
             size: heightM,
-            material: { color: [255, 200, 0, 0.70] },
-            edges: { type: 'solid', color: [200, 120, 0, 1], size: 2 },
+            material: { color: isDesigned ? [34, 197, 94, 0.70] : [255, 200, 0, 0.70] },
+            edges: { type: 'solid', color: isDesigned ? [22, 163, 74, 1] : [200, 120, 0, 1], size: 2 },
           })],
         }),
       });
@@ -1125,6 +1141,7 @@ const SolarSuitabilityTool = ({ view, onClose }) => {
       sketchLayerRef.current = null;
     }
     setIsPlacingSimBuilding(false);
+    setIsDrawingDesigned(false);
     setDrawingInstructions('');
   };
 
@@ -1133,12 +1150,12 @@ const SolarSuitabilityTool = ({ view, onClose }) => {
    * Pattern matches TrueGeoMap's BuildingConstructionWidget / AssetPlacementWidget.
    * User clicks vertices, double-clicks to finish.
    */
-  const startDrawingPolygon = () => {
+  const startDrawingPolygon = (mode = 'sim', overrideFloors = null) => {
     // Cancel any existing session first
     cancelSketchVM();
 
-    // Capture simFloors NOW (avoid React stale closure since callback fires later)
-    const floorsAtDraw = simFloors;
+    const floorsAtDraw = overrideFloors !== null ? overrideFloors : simFloors;
+    const isDesigned = mode === 'designed';
 
     // 1. Create a dedicated GraphicsLayer for the 2D sketch preview
     const sketchLayer = new GraphicsLayer({
@@ -1155,8 +1172,8 @@ const SolarSuitabilityTool = ({ view, onClose }) => {
       defaultCreateOptions: { hasZ: false },
       polygonSymbol: {
         type: 'simple-fill',
-        color: [255, 200, 0, 0.25],
-        outline: { type: 'simple-line', color: [220, 140, 0, 1], width: 2, style: 'dash' },
+        color: isDesigned ? [34, 197, 94, 0.25] : [255, 200, 0, 0.25],
+        outline: { type: 'simple-line', color: isDesigned ? [22, 163, 74, 1] : [220, 140, 0, 1], width: 2, style: 'dash' },
       },
     });
     sketchVMRef.current = sketchVM;
@@ -1172,7 +1189,8 @@ const SolarSuitabilityTool = ({ view, onClose }) => {
         sketchVMRef.current = null;
 
         if (!poly || !poly.rings || poly.rings.length === 0) {
-          setIsPlacingSimBuilding(false);
+          if (isDesigned) setIsDrawingDesigned(false);
+          else setIsPlacingSimBuilding(false);
           setDrawingInstructions('');
           return;
         }
@@ -1188,8 +1206,8 @@ const SolarSuitabilityTool = ({ view, onClose }) => {
 
         console.log('[SimBuilding] Polygon complete, SR:', geomForShadow.spatialReference, 'floors:', floorsAtDraw);
 
-        // Draw the 3D yellow extrusion
-        const graphic = await drawSimBuildingGraphic(geomForShadow, floorsAtDraw);
+        // Draw the 3D extrusion
+        const graphic = await drawSimBuildingGraphic(geomForShadow, floorsAtDraw, mode);
 
         const entry = {
           id: Date.now(),
@@ -1199,9 +1217,17 @@ const SolarSuitabilityTool = ({ view, onClose }) => {
           graphic,
         };
 
-        setSimulatedBuildings(prev => [...prev, entry]);
-        simGraphicsRef.current.push(graphic);
-        setIsPlacingSimBuilding(false);
+        if (isDesigned) {
+          setDesignedBuilding(prev => {
+            if (prev?.graphic) try { view.graphics.remove(prev.graphic); } catch (e) {}
+            return entry;
+          });
+          setIsDrawingDesigned(false);
+        } else {
+          setSimulatedBuildings(prev => [...prev, entry]);
+          simGraphicsRef.current.push(graphic);
+          setIsPlacingSimBuilding(false);
+        }
         setDrawingInstructions('');
 
       } else if (event.state === 'cancel') {
@@ -1209,6 +1235,7 @@ const SolarSuitabilityTool = ({ view, onClose }) => {
         sketchLayerRef.current = null;
         sketchVMRef.current = null;
         setIsPlacingSimBuilding(false);
+        setIsDrawingDesigned(false);
         setDrawingInstructions('');
       }
     });
@@ -1216,7 +1243,8 @@ const SolarSuitabilityTool = ({ view, onClose }) => {
     // 4. Start drawing
     sketchVM.create('polygon');
 
-    setIsPlacingSimBuilding(true);
+    if (isDesigned) setIsDrawingDesigned(true);
+    else setIsPlacingSimBuilding(true);
     setDrawingInstructions('Click to add vertices · Double-click to complete polygon');
   };
 
@@ -1239,10 +1267,27 @@ const SolarSuitabilityTool = ({ view, onClose }) => {
   };
 
   const runAnalysis = () => {
-    if (!selectedBuilding) return;
-    setLoading(true);
-    view.environment.lighting.directShadowsEnabled = true;
-    runShadowAnalysis();
+    if (analysisMode === 'existing') {
+      if (!selectedBuilding) return;
+      setLoading(true);
+      view.environment.lighting.directShadowsEnabled = true;
+      runShadowAnalysis();
+    } else {
+      if (!designedBuilding) return;
+      setLoading(true);
+      view.environment.lighting.directShadowsEnabled = true;
+      const designedFeature = {
+        geometry: designedBuilding.geometry,
+        attributes: {
+          height: designedBuilding.height,
+          no_floors: designedBuilding.floors,
+          area_sqmtr: 0,
+          objectid: -1,
+          name: 'Designed Building'
+        }
+      };
+      runShadowAnalysis(designedFeature);
+    }
   };
 
   const resetTool = () => {
@@ -1251,6 +1296,10 @@ const SolarSuitabilityTool = ({ view, onClose }) => {
       highlightHandleRef.current = null;
     }
     setSelectedBuilding(null);
+    setDesignedBuilding(null);
+    if (designedBuilding?.graphic) {
+      try { view.graphics.remove(designedBuilding.graphic); } catch (e) {}
+    }
     setAnalysisResult(null);
     setSearchTerm('');
     setSearchResults([]);
@@ -1272,16 +1321,19 @@ const SolarSuitabilityTool = ({ view, onClose }) => {
 
   /** Capture map screenshot + save analysis to localStorage */
   const saveAnalysis = async () => {
-    if (!analysisResult || !selectedBuilding) return;
+    const isDesigned = analysisMode === 'designed';
+    const targetBuilding = isDesigned ? designedBuilding : selectedBuilding;
+    if (!analysisResult || !targetBuilding) return;
     setSavedMsg('saving');
     try {
       const screenshot = await view.takeScreenshot({ width: 800, height: 500, format: 'png' });
-      const buildingName = getBuildingInfo(selectedBuilding.attributes).name || 'Unknown Building';
+      const buildingInfo = isDesigned ? { name: 'Designed Building', floors: targetBuilding.floors, height: targetBuilding.height } : getBuildingInfo(targetBuilding.attributes);
+      const buildingName = buildingInfo.name || 'Unknown Building';
       const entry = {
         id: Date.now(),
         timestamp: new Date().toISOString(),
         buildingName,
-        buildingInfo: getBuildingInfo(selectedBuilding.attributes),
+        buildingInfo,
         result: analysisResult,
         mapScreenshot: screenshot.dataUrl,
       };
@@ -1298,11 +1350,14 @@ const SolarSuitabilityTool = ({ view, onClose }) => {
 
   /** Export current analysis as a PDF report */
   const exportPDF = async () => {
-    if (!analysisResult || !selectedBuilding) return;
+    const isDesigned = analysisMode === 'designed';
+    const targetBuilding = isDesigned ? designedBuilding : selectedBuilding;
+    if (!analysisResult || !targetBuilding) return;
     const { jsPDF } = await import('jspdf');
     const html2canvas = (await import('html2canvas')).default;
 
-    const buildingName = getBuildingInfo(selectedBuilding.attributes).name || 'Building';
+    const buildingInfo = isDesigned ? { name: 'Designed Building' } : getBuildingInfo(targetBuilding.attributes);
+    const buildingName = buildingInfo.name || 'Building';
     const now = new Date().toLocaleString('en-IN');
     const r = analysisResult;
 
@@ -1448,7 +1503,24 @@ const SolarSuitabilityTool = ({ view, onClose }) => {
         )}
 
         <div className="p-4 space-y-4">
-          {!selectedBuilding && !analysisResult && (
+          {!analysisResult && (
+            <div className="flex border border-blue-200 rounded overflow-hidden">
+              <button
+                className={`flex-1 py-2 text-sm font-medium transition-colors ${analysisMode === 'existing' ? 'bg-[#1a73e8] text-white' : 'bg-gray-50 text-gray-600 hover:bg-gray-100'}`}
+                onClick={() => setAnalysisMode('existing')}
+              >
+                Existing Building
+              </button>
+              <button
+                className={`flex-1 py-2 text-sm font-medium transition-colors ${analysisMode === 'designed' ? 'bg-green-600 text-white' : 'bg-gray-50 text-gray-600 hover:bg-gray-100'}`}
+                onClick={() => setAnalysisMode('designed')}
+              >
+                Design New
+              </button>
+            </div>
+          )}
+
+          {analysisMode === 'existing' && !selectedBuilding && !analysisResult && (
             <div className="space-y-3">
               <SearchLocationTool view={view} isFireWidget={true} />
               
@@ -1474,7 +1546,36 @@ const SolarSuitabilityTool = ({ view, onClose }) => {
             </div>
           )}
 
-          {selectedBuilding && !analysisResult && (
+          {analysisMode === 'designed' && !designedBuilding && !analysisResult && (
+            <div className="space-y-3 border border-green-200 bg-green-50/30 p-4 rounded-lg">
+              <div className="text-sm font-medium text-gray-700 mb-2">Design New Building</div>
+              <div className="flex items-center space-x-2">
+                <label className="text-xs text-gray-600 w-16">Floors:</label>
+                <input
+                  type="number"
+                  min="1" max="50"
+                  value={designedFloors}
+                  onChange={(e) => setDesignedFloors(parseInt(e.target.value) || 1)}
+                  className="w-20 px-2 py-1 text-sm border border-gray-300 rounded"
+                />
+              </div>
+              <button
+                onClick={() => {
+                  if (isDrawingDesigned) {
+                    cancelSketchVM();
+                    setIsDrawingDesigned(false);
+                  } else {
+                    startDrawingPolygon('designed', designedFloors);
+                  }
+                }}
+                className={`w-full py-3 rounded text-sm font-medium transition-colors ${isDrawingDesigned ? 'bg-red-600 hover:bg-red-700 text-white' : 'bg-green-600 hover:bg-green-700 text-white'}`}
+              >
+                {isDrawingDesigned ? '❌ Cancel Drawing' : '✏️ Draw Polygon on Map'}
+              </button>
+            </div>
+          )}
+
+          {((analysisMode === 'existing' && selectedBuilding) || (analysisMode === 'designed' && designedBuilding)) && !analysisResult && (
             <div className="space-y-4 animate-in fade-in zoom-in duration-200">
               {/* Step 1: Building info card */}
               <div style={{
@@ -1488,9 +1589,19 @@ const SolarSuitabilityTool = ({ view, onClose }) => {
                 <div style={{ fontWeight: '600', marginBottom: '8px', color: '#1e40af' }}>
                   ✅ Step 1: Building Selected
                 </div>
-                <div className="flex justify-between"><span className="text-gray-500">Name/ID:</span> <span className="font-medium truncate max-w-[140px]" title={getBuildingInfo(selectedBuilding.attributes).name}>{getBuildingInfo(selectedBuilding.attributes).name}</span></div>
-                <div className="flex justify-between"><span className="text-gray-500">Floors:</span> <span className="font-medium">{getBuildingInfo(selectedBuilding.attributes).floors || '—'}</span></div>
-                <div className="flex justify-between"><span className="text-gray-500">Height:</span> <span className="font-medium">{getBuildingInfo(selectedBuilding.attributes).height ? getBuildingInfo(selectedBuilding.attributes).height + ' m' : '—'}</span></div>
+                {analysisMode === 'existing' && selectedBuilding ? (
+                  <>
+                    <div className="flex justify-between"><span className="text-gray-500">Name/ID:</span> <span className="font-medium truncate max-w-[140px]" title={getBuildingInfo(selectedBuilding.attributes).name}>{getBuildingInfo(selectedBuilding.attributes).name}</span></div>
+                    <div className="flex justify-between"><span className="text-gray-500">Floors:</span> <span className="font-medium">{getBuildingInfo(selectedBuilding.attributes).floors || '—'}</span></div>
+                    <div className="flex justify-between"><span className="text-gray-500">Height:</span> <span className="font-medium">{getBuildingInfo(selectedBuilding.attributes).height ? getBuildingInfo(selectedBuilding.attributes).height + ' m' : '—'}</span></div>
+                  </>
+                ) : (
+                  <>
+                    <div className="flex justify-between"><span className="text-gray-500">Name/ID:</span> <span className="font-medium truncate max-w-[140px]">Designed Building</span></div>
+                    <div className="flex justify-between"><span className="text-gray-500">Floors:</span> <span className="font-medium">{designedBuilding?.floors || '—'}</span></div>
+                    <div className="flex justify-between"><span className="text-gray-500">Height:</span> <span className="font-medium">{designedBuilding?.height ? designedBuilding.height.toFixed(1) + ' m' : '—'}</span></div>
+                  </>
+                )}
               </div>
 
               {/* Step 2: Simulate Future Neighbour Buildings */}
