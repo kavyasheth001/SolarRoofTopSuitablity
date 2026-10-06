@@ -6,7 +6,7 @@ import { useLocation } from 'react-router-dom';
 const DefaultLayout = ({ children }) => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
    const location = useLocation();
-  const isMapRoute = location.pathname === '/map' ;
+  const isMapRoute = location.pathname.endsWith('/map') || location.pathname === '/';
   const isOtherRoute = location.pathname ==='/messages' || location.pathname === '/inbox' || location.pathname === '/calendar' || location.pathname === '/projects';
 
   return (
@@ -24,8 +24,8 @@ const DefaultLayout = ({ children }) => {
           {/* <!-- ===== Header End ===== --> */}
 
           {/* <!-- ===== Main Content Start ===== --> */}
-          <main>
-            <div className={isMapRoute ? '' : 'relative mx-auto p-2 md:p-2 2xl:p-2'}>
+          <main className="flex-1 overflow-hidden flex flex-col">
+            <div className={isMapRoute ? 'flex-1 w-full relative' : 'relative mx-auto p-2 md:p-2 2xl:p-2 flex-1'}>
       {children}
     </div>
           </main>

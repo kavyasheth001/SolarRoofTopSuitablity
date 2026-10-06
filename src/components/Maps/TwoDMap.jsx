@@ -6,6 +6,7 @@ import SceneIdentifyTool from '../Tools/SceneIdentifyTool';
 import WelcomeSplash from './WelcomeSplash';
 import AreaHeatmapTool from '../Tools/AreaHeatmapTool';
 import GuidedDemoTour from '../Tools/GuidedDemoTour';
+import { FaGlobe } from 'react-icons/fa';
 import './TwoDMap.css';
 
 const TwoDMap = ({ isSidebarCollapsed }) => {
@@ -150,46 +151,148 @@ const TwoDMap = ({ isSidebarCollapsed }) => {
   }, [toggleSolarSuitability, solarSuitabilityEnabled, registerQuickAccessButtonFunction, registerQuickAccessButtonState]);
 
   useEffect(() => {
+    const el = mapContainer3DRef.current;
+    if (!el || !view) return;
+
+    let raf = null;
+    const ro = new ResizeObserver(() => {
+      cancelAnimationFrame(raf);
+      raf = requestAnimationFrame(() => {
+        window.dispatchEvent(new Event('resize'));
+      });
+    });
+    ro.observe(el);
+
+    return () => {
+      cancelAnimationFrame(raf);
+      ro.disconnect();
+    };
+  }, [view]);
+
+  useEffect(() => {
+    const t = setTimeout(() => window.dispatchEvent(new Event('resize')), 350);
+    return () => clearTimeout(t);
+  }, [solarSuitabilityEnabled]);
+
+  useEffect(() => {
     registerQuickAccessButtonFunction('identify', toggleIdentify);
     registerQuickAccessButtonState('identify', identifyEnabled);
   }, [toggleIdentify, identifyEnabled, registerQuickAccessButtonFunction, registerQuickAccessButtonState]);
 
+  // New state for the divider
+  const [toolPanelWidth, setToolPanelWidth] = useState(420); // default width in px
+  const dividerRef = useRef(null);
+  const isDraggingDivider = useRef(false);
+  const panelRef = useRef(null);
+
+  // Divider drag handlers
+  const onDividerMouseDown = useCallback((e) => {
+    e.preventDefault();
+    isDraggingDivider.current = true;
+    const startX = e.clientX;
+    const startWidth = toolPanelWidth;
+
+    const onMouseMove = (moveEvent) => {
+      if (!isDraggingDivider.current) return;
+      const diff = startX - moveEvent.clientX;
+      const newWidth = Math.max(340, Math.min(800, startWidth + diff));
+      if (panelRef.current) {
+        panelRef.current.style.width = `${newWidth}px`;
+      }
+    };
+    const onMouseUp = (upEvent) => {
+      isDraggingDivider.current = false;
+      window.removeEventListener('mousemove', onMouseMove);
+      window.removeEventListener('mouseup', onMouseUp);
+      const diff = startX - upEvent.clientX;
+      const finalWidth = Math.max(340, Math.min(800, startWidth + diff));
+      setToolPanelWidth(finalWidth);
+    };
+    window.addEventListener('mousemove', onMouseMove);
+    window.addEventListener('mouseup', onMouseUp);
+  }, [toolPanelWidth]);
+
+  // Effect to auto-open Solar Suitability Tool based on URL query param
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.get('tool') === 'solar') {
+      setSolarSuitabilityEnabled(true);
+      registerQuickAccessButtonState('solarSuitability', true);
+    }
+  }, [registerQuickAccessButtonState]);
+
   return (
-    <div className={`map-wrapper ${isSidebarCollapsed ? 'expanded' : ''}`} style={{ height: '100%', width: '100%', position: 'relative' }}>
+    <div className={`map-wrapper ${isSidebarCollapsed ? 'expanded' : ''}`} style={{ position: 'absolute', inset: 0, display: 'flex', overflow: 'hidden' }}>
       {showSplash && <WelcomeSplash onDismiss={handleSplashDismiss} />}
-      <div ref={mapContainer3DRef} className="map-container" style={{ height: '100%', width: '100%' }} />
+
+      {/* === Map container — takes remaining width === */}
+      <div
+        ref={mapContainer3DRef}
+        className="map-container"
+        style={{
+          height: '100%',
+          flex: solarSuitabilityEnabled ? '1 1 0%' : '1 1 100%',
+          transition: solarSuitabilityEnabled ? 'none' : 'flex 0.3s ease',
+          minWidth: 300,
+        }}
+      />
+
+      {/* === Shadow Analysis (still floating, it's a small widget) === */}
       {shadowAnalysisEnabled && (
         <ShadowAnalysisWidget view={view} onClose={() => setShadowAnalysisEnabled(false)} />
       )}
+
+      {/* === Solar Suitability — Docked Right Panel === */}
       {solarSuitabilityEnabled && (
-        <SolarSuitabilityTool view={view} onClose={() => setSolarSuitabilityEnabled(false)} />
+        <>
+          {/* Draggable divider */}
+          <div
+            ref={dividerRef}
+            onMouseDown={onDividerMouseDown}
+            style={{
+              width: 6,
+              cursor: 'col-resize',
+              background: '#e2e8f0',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              flexShrink: 0,
+              zIndex: 10,
+              transition: 'background 0.2s',
+            }}
+            onMouseEnter={(e) => e.currentTarget.style.background = '#94a3b8'}
+            onMouseLeave={(e) => e.currentTarget.style.background = '#e2e8f0'}
+          >
+            {/* Grip dots */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+              {[0, 1, 2].map(i => (
+                <div key={i} style={{ width: 3, height: 3, borderRadius: '50%', background: '#64748b' }} />
+              ))}
+            </div>
+          </div>
+
+          {/* The tool panel itself */}
+          <div ref={panelRef} style={{ width: toolPanelWidth, flexShrink: 0, height: '100%', overflow: 'hidden' }}>
+            <SolarSuitabilityTool
+              view={view}
+              onClose={() => setSolarSuitabilityEnabled(false)}
+              panelWidth={toolPanelWidth}
+            />
+          </div>
+        </>
       )}
-      
+
+      {/* Identify tool (floating popup, unchanged) */}
+      {view && (
+        <SceneIdentifyTool view={view} enabled={identifyEnabled} onClose={() => setIdentifyEnabled(false)} />
+      )}
+
+      {/* Area Heatmap and other floating tools */}
       {areaHeatmapEnabled && (
         <AreaHeatmapTool view={view} onClose={() => setAreaHeatmapEnabled(false)} />
       )}
 
-      {/* Exhibition Tools Floating Button */}
-      <div style={{ position: 'absolute', bottom: 30, left: 20, zIndex: 100, display: 'flex', gap: 10 }}>
-        <button
-          onClick={() => setAreaHeatmapEnabled(!areaHeatmapEnabled)}
-          style={{
-            background: 'linear-gradient(135deg, #1e3a8a, #3b82f6)',
-            color: 'white', border: 'none', borderRadius: 8, padding: '10px 16px',
-            fontWeight: 700, fontSize: 14, cursor: 'pointer',
-            boxShadow: '0 4px 12px rgba(0,0,0,0.2)', display: 'flex', alignItems: 'center', gap: 8
-          }}
-        >
-          ðŸŒ Area Heatmap
-        </button>
-      </div>
-      {view && (
-        <SceneIdentifyTool
-          view={view}
-          enabled={identifyEnabled}
-          onClose={() => setIdentifyEnabled(false)}
-        />
-      )}
+      {/* Area Heatmap floating button removed as requested */}
     </div>
   );
 };

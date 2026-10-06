@@ -10,7 +10,7 @@ import SearchLocationTool from './SearchLocationTool';
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, CartesianGrid,
 } from 'recharts';
-import { FaCheckCircle, FaBolt, FaExclamationTriangle, FaCircle, FaTree, FaMoneyBillWave, FaChartBar, FaSun, FaRobot } from 'react-icons/fa';
+import { FaPlay, FaPause, FaCheckCircle, FaBolt, FaExclamationTriangle, FaCircle, FaTree, FaMoneyBillWave, FaChartBar, FaSun, FaRobot } from 'react-icons/fa';
 
 const lodTitles = [
   'LoD 2 without Texture',
@@ -281,7 +281,9 @@ const SmartRecommendations = ({ result }) => {
   );
 };
 
-const SolarSuitabilityTool = ({ view, onClose }) => {
+const SolarSuitabilityTool = ({ view, onClose, panelWidth = 420 }) => {
+  const isWide = panelWidth >= 550;
+  const isExtraWide = panelWidth >= 700;
   const contentDivRef = useRef(null);
   const daylightWidgetRef = useRef(null);
   const widgetContainerRef = useRef(null);
@@ -289,8 +291,6 @@ const SolarSuitabilityTool = ({ view, onClose }) => {
   const clickHandle = useRef(null);
   const highlightHandleRef = useRef(null);
 
-  const [position, setPosition] = useState({ top: 120, left: null, right: 20 });
-  const [isBodyVisible, setIsBodyVisible] = useState(true);
 
   const [buildingLayer, setBuildingLayer] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
@@ -309,34 +309,6 @@ const SolarSuitabilityTool = ({ view, onClose }) => {
   const [isWidgetReady, setIsWidgetReady] = useState(false);
   const [savedMsg, setSavedMsg] = useState(''); // 'saving' | 'saved' | ''
 
-  // Resizable panel
-  const [panelSize, setPanelSize] = useState({ width: 340, height: 520 });
-  const resizingRef = useRef(null); // stores { startX, startY, startW, startH }
-
-  const onResizeStart = (e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    resizingRef.current = {
-      startX: e.clientX,
-      startY: e.clientY,
-      startW: panelSize.width,
-      startH: panelSize.height,
-    };
-    const onMove = (ev) => {
-      if (!resizingRef.current) return;
-      const { startX, startY, startW, startH } = resizingRef.current;
-      const newW = Math.max(280, Math.min(700, startW + (ev.clientX - startX)));
-      const newH = Math.max(320, Math.min(900, startH + (ev.clientY - startY)));
-      setPanelSize({ width: newW, height: newH });
-    };
-    const onUp = () => {
-      resizingRef.current = null;
-      window.removeEventListener('mousemove', onMove);
-      window.removeEventListener('mouseup', onUp);
-    };
-    window.addEventListener('mousemove', onMove);
-    window.addEventListener('mouseup', onUp);
-  };
 
   const [simulating, setSimulating] = useState(false);
   const [simulationProgress, setSimulationProgress] = useState(0);
@@ -500,41 +472,6 @@ const SolarSuitabilityTool = ({ view, onClose }) => {
     }
   }, [analysisResult, view]);
 
-  // Drag logic
-  const onDragStart = useCallback((e) => {
-    e.preventDefault();
-    if (e.target.dataset.role === "close-button" || e.target.dataset.role === "collapse-button") return;
-
-    const container = contentDivRef.current;
-    if (!container) return;
-
-    const parent = container.offsetParent;
-    if (!parent) return;
-
-    const parentRect = parent.getBoundingClientRect();
-    const rect = container.getBoundingClientRect();
-    const offsetX = e.clientX - rect.left;
-    const offsetY = e.clientY - rect.top;
-
-    const onMouseMove = (moveEvent) => {
-      let newLeft = moveEvent.clientX - parentRect.left - offsetX;
-      let newTop = moveEvent.clientY - parentRect.top - offsetY;
-      if (newLeft < 0) newLeft = 0;
-      if (newLeft + rect.width > parentRect.width) newLeft = parentRect.width - rect.width;
-      if (newTop < 0) newTop = 0;
-      if (newTop + rect.height > parentRect.height) newTop = parentRect.height - rect.height;
-
-      setPosition({ top: newTop, left: newLeft, right: null });
-    };
-
-    const onMouseUp = () => {
-      document.removeEventListener("mousemove", onMouseMove);
-      document.removeEventListener("mouseup", onMouseUp);
-    };
-
-    document.addEventListener("mousemove", onMouseMove);
-    document.addEventListener("mouseup", onMouseUp);
-  }, []);
 
   const handleSearch = async () => {
     if (!buildingLayer || !searchTerm) return;
@@ -1480,6 +1417,24 @@ const SolarSuitabilityTool = ({ view, onClose }) => {
     view.environment.lighting.date = now;
   };
 
+  useEffect(() => {
+    let interval;
+    if (isPlayingShadow) {
+      interval = setInterval(() => {
+        setTimeSliderHour((prev) => {
+          let next = prev + 0.1;
+          if (next > 18) next = 6;
+          const now = new Date();
+          now.setHours(Math.floor(next), (next % 1) * 60, 0, 0);
+          view.environment.lighting.date = now;
+          return next;
+        });
+      }, 100); // adjust speed as needed
+    }
+    return () => clearInterval(interval);
+  }, [isPlayingShadow, view]);
+
+
   const runAnalysis = () => {
     if (analysisMode === 'existing') {
       if (!selectedBuilding) return;
@@ -1670,10 +1625,6 @@ const SolarSuitabilityTool = ({ view, onClose }) => {
     pdf.save(`SolarSight_Report_${buildingName.replace(/\s+/g, '_')}.pdf`);
   };
 
-  const positionStyle = {
-    top: `${position.top}px`,
-    ...(position.left !== null ? { left: `${position.left}px` } : { right: `${position.right}px` }),
-  };
 
   const handleClose = () => {
     if (onClose) onClose();
@@ -1773,19 +1724,11 @@ const SolarSuitabilityTool = ({ view, onClose }) => {
       {/* -- Main Panel -------------------------------------------- */}
       <div
         ref={contentDivRef}
-        className="absolute bg-white text-gray-800 font-sans rounded-xl overflow-hidden shadow-lg z-[99] flex flex-col"
-        style={{ ...positionStyle, width: `${panelSize.width}px`, maxHeight: `${panelSize.height}px`, position: 'absolute' }}
+        className="bg-white text-gray-800 font-sans flex flex-col"
+        style={{ width: '100%', height: '100%', overflow: 'hidden' }}
       >
         {/* Header */}
-        <div className="flex items-center justify-between bg-[#1a73e8] px-3 py-2 cursor-move select-none" onMouseDown={onDragStart}>
-          <button
-            data-role="collapse-button"
-            className="bg-transparent border-none text-white cursor-pointer hover:opacity-80 transition-opacity"
-            onClick={() => setIsBodyVisible(!isBodyVisible)}
-            aria-label={isBodyVisible ? 'Collapse' : 'Expand'}
-          >
-            {isBodyVisible ? '\u25B2' : '\u25BC'}
-          </button>
+        <div className="flex items-center justify-between bg-[#1e3a5f] px-3 py-2 select-none">
           <div className="text-base text-white font-medium">Solar Suitability</div>
           <button
             data-role="close-button"
@@ -1797,7 +1740,7 @@ const SolarSuitabilityTool = ({ view, onClose }) => {
           </button>
         </div>
 
-        <div className={`overflow-y-auto flex-1 ${!isBodyVisible ? 'hidden' : ''}`}>
+        <div className="overflow-y-auto flex-1">
           <div className="p-3 bg-blue-50 text-blue-800 text-xs text-center border-b border-blue-100">
             LoD layers have been enabled for shadow simulation.
           </div>
@@ -2175,6 +2118,13 @@ const SolarSuitabilityTool = ({ view, onClose }) => {
                   )}
                 </div>
 
+                {/* Results grid — responsive to panel width */}
+                <div style={{
+                  display: isWide ? 'grid' : 'block',
+                  gridTemplateColumns: isExtraWide ? '1fr 1fr' : (isWide ? '1fr 1fr' : '1fr'),
+                  gap: 16,
+                }}>
+                  <div>
                 {/* -- Shadow & Sunlight ----------------------------- */}
                 <div>
                   <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.08em', color: '#1e3a5f', padding: '6px 0 4px', borderBottom: '2px solid #dbeafe', marginBottom: 6 }}>
@@ -2201,27 +2151,31 @@ const SolarSuitabilityTool = ({ view, onClose }) => {
                 <HourlySunlightChart hourlyResults={analysisResult.hourlyResults} />
 
                 {/* -- Time Slider (Visual Analysis) ---------------- */}
-                <div style={{ padding: '12px', background: '#1e293b', borderRadius: 10 }}>
-                  <div style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', letterSpacing: '0.08em', marginBottom: 8 }}>
+                <div style={{ padding: '12px', background: '#f0f9ff', border: '1px solid #bae6fd', borderRadius: 10 }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: '#1e3a5f', letterSpacing: '0.08em', marginBottom: 8 }}>
                     SHADOW VISUALISATION — TIME OF DAY
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                     <button
                       onClick={() => setIsPlayingShadow(p => !p)}
-                      style={{ background: 'none', border: 'none', color: '#f59e0b', cursor: 'pointer', fontSize: 16, display: 'flex', alignItems: 'center' }}
-                      title={isPlayingShadow ? 'Pause' : 'Play'}
+                      style={{
+                        background: '#1e3a5f', border: 'none', color: '#ffffff',
+                        cursor: 'pointer', fontSize: 12, display: 'flex', alignItems: 'center',
+                        justifyContent: 'center', width: 28, height: 28, borderRadius: 6,
+                      }}
+                      title={isPlayingShadow ? 'Pause' : 'Play shadow animation'}
                     >
-                      {isPlayingShadow ? '\u23F8' : '\u25B6'}
+                      {isPlayingShadow ? <FaPause /> : <FaPlay />}
                     </button>
-                    <span style={{ fontSize: 11, color: '#64748b', whiteSpace: 'nowrap' }}>6 AM</span>
+                    <span style={{ fontSize: 11, color: '#1e3a5f', fontWeight: 600, whiteSpace: 'nowrap' }}>6 AM</span>
                     <input
                       type="range" min={6} max={18} step={0.25} value={timeSliderHour}
                       onChange={e => updateTimeSlider(Number(e.target.value))}
-                      style={{ flex: 1, accentColor: '#f59e0b' }}
+                      style={{ flex: 1, accentColor: '#1e3a5f' }}
                     />
-                    <span style={{ fontSize: 11, color: '#64748b', whiteSpace: 'nowrap' }}>6 PM</span>
+                    <span style={{ fontSize: 11, color: '#1e3a5f', fontWeight: 600, whiteSpace: 'nowrap' }}>6 PM</span>
                   </div>
-                  <div style={{ textAlign: 'center', fontSize: 13, fontWeight: 600, color: '#f1f5f9', marginTop: 4 }}>
+                  <div style={{ textAlign: 'center', fontSize: 13, fontWeight: 600, color: '#1e3a5f', marginTop: 4 }}>
                     {(() => {
                       const h = Math.floor(timeSliderHour);
                       const m = Math.round((timeSliderHour % 1) * 60);
@@ -2229,7 +2183,7 @@ const SolarSuitabilityTool = ({ view, onClose }) => {
                       const h12 = h % 12 === 0 ? 12 : h % 12;
                       return `${h12}:${m.toString().padStart(2, '0')} ${ampm}`;
                     })()}
-                    <span style={{ fontSize: 10, color: '#64748b', marginLeft: 8 }}>Drag to change time &amp; see live shadows on map</span>
+                    <span style={{ fontSize: 10, color: '#6b7280', marginLeft: 8 }}>Drag to change time &amp; see live shadows on map</span>
                   </div>
 
                   {/* Daylight widget container — hidden behind our slider, used for sun position only */}
@@ -2239,6 +2193,8 @@ const SolarSuitabilityTool = ({ view, onClose }) => {
                   />
                 </div>
 
+                </div>
+                <div>
                 {/* -- Rooftop & Panels ---------------------------- */}
                 <div>
                   <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.08em', color: '#1e3a5f', padding: '6px 0 4px', borderBottom: '2px solid #dcfce7', marginBottom: 6 }}>
@@ -2285,6 +2241,8 @@ const SolarSuitabilityTool = ({ view, onClose }) => {
                   </InfoAccordion>
                 </div>
 
+                </div>
+                <div style={{ gridColumn: isExtraWide ? 'span 2' : 'span 1' }}>
                 {/* -- Financial & Environmental ------------------- */}
                 <div>
                   <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.08em', color: '#1e3a5f', padding: '6px 0 4px', borderBottom: '2px solid #fce7f3', marginBottom: 6 }}>
@@ -2307,6 +2265,8 @@ const SolarSuitabilityTool = ({ view, onClose }) => {
                     Annual Savings = Annual Generation &times; &#8377;7/unit (Mumbai average grid tariff). Install cost = Capacity &times; &#8377;60,000/kWp (Maharashtra, 2024). Payback = Install cost &divide; Annual savings. CO&sup2; saved = Annual generation &times; 0.82 kg CO&sup2;/kWh (India CEA grid emission factor).
                   </InfoAccordion>
                 </div>
+                </div>
+              </div>
 
                 {/* Smart Recommendations */}
                 <SmartRecommendations result={analysisResult} />
@@ -2339,16 +2299,6 @@ const SolarSuitabilityTool = ({ view, onClose }) => {
           </div>
         </div>
 
-        {/* Resize grip */}
-        <div
-          onMouseDown={onResizeStart}
-          title="Drag to resize"
-          style={{ position: 'absolute', bottom: 0, right: 0, width: 18, height: 18, cursor: 'nwse-resize', zIndex: 200, display: 'flex', alignItems: 'flex-end', justifyContent: 'flex-end', padding: '3px', opacity: 0.45 }}
-        >
-          <svg width="10" height="10" viewBox="0 0 10 10" fill="#1a73e8">
-            <path d="M9 1L1 9M5 1L1 5M9 5L5 9" stroke="#1a73e8" strokeWidth="1.5" strokeLinecap="round" />
-          </svg>
-        </div>
       </div>
     </>
   );

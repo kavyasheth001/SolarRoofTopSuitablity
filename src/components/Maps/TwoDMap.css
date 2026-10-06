@@ -91,3 +91,27 @@
   opacity: 1 !important;
   color: black !important;
 }
+
+
+/* ArcGIS resize fixes */
+.map-wrapper {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  overflow: hidden;
+}
+
+.map-container {
+  position: relative;
+  min-width: 0;
+  height: 100%;
+  overflow: hidden;
+}
+
+.map-container > div,
+.map-container .esri-view,
+.map-container .esri-view-root,
+.map-container .esri-view-surface {
+  width: 100% !important;
+  height: 100% !important;
+}

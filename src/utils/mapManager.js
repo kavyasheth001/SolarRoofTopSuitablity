@@ -151,6 +151,12 @@ async function _doInitialize(containerDiv, onViewReady, onMapReady) {
   // Disable default popup — individual tools opt-in
   sceneView.popupEnabled = false;
 
+  // Move controls to top-left and remove attribution
+  sceneView.ui.components = []; // clear defaults
+  sceneView.ui.add("zoom", "top-left");
+  sceneView.ui.add("navigation-toggle", "top-left");
+  sceneView.ui.add("compass", "top-left");
+
   // ── Step 5: Wait for webscene, then add standard widgets ──────────────────
   await webscene.when();
 
