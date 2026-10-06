@@ -3,6 +3,9 @@ import { useMap } from '../../context/MapContext';
 import ShadowAnalysisWidget from '../Tools/ShadowAnalysisWidget';
 import SolarSuitabilityTool from '../Tools/SolarSuitabilityTool';
 import SceneIdentifyTool from '../Tools/SceneIdentifyTool';
+import WelcomeSplash from './WelcomeSplash';
+import AreaHeatmapTool from '../Tools/AreaHeatmapTool';
+import GuidedDemoTour from '../Tools/GuidedDemoTour';
 import './TwoDMap.css';
 
 const TwoDMap = ({ isSidebarCollapsed }) => {
@@ -15,6 +18,18 @@ const TwoDMap = ({ isSidebarCollapsed }) => {
   const [shadowAnalysisEnabled, setShadowAnalysisEnabled] = useState(false);
   const [solarSuitabilityEnabled, setSolarSuitabilityEnabled] = useState(false);
   const [identifyEnabled, setIdentifyEnabled] = useState(false);
+  const [areaHeatmapEnabled, setAreaHeatmapEnabled] = useState(false);
+  const [guidedDemoEnabled, setGuidedDemoEnabled] = useState(false);
+
+  // Show welcome splash only once per session
+  const [showSplash, setShowSplash] = useState(() => {
+    return !sessionStorage.getItem('solar_splash_shown');
+  });
+
+  const handleSplashDismiss = () => {
+    sessionStorage.setItem('solar_splash_shown', 'true');
+    setShowSplash(false);
+  };
 
   useEffect(() => {
     if (!mapContainer3DRef.current) return;
@@ -140,7 +155,8 @@ const TwoDMap = ({ isSidebarCollapsed }) => {
   }, [toggleIdentify, identifyEnabled, registerQuickAccessButtonFunction, registerQuickAccessButtonState]);
 
   return (
-    <div className={`map-wrapper ${isSidebarCollapsed ? 'expanded' : ''}`} style={{ height: '100%', width: '100%' }}>
+    <div className={`map-wrapper ${isSidebarCollapsed ? 'expanded' : ''}`} style={{ height: '100%', width: '100%', position: 'relative' }}>
+      {showSplash && <WelcomeSplash onDismiss={handleSplashDismiss} />}
       <div ref={mapContainer3DRef} className="map-container" style={{ height: '100%', width: '100%' }} />
       {shadowAnalysisEnabled && (
         <ShadowAnalysisWidget view={view} onClose={() => setShadowAnalysisEnabled(false)} />
@@ -148,6 +164,25 @@ const TwoDMap = ({ isSidebarCollapsed }) => {
       {solarSuitabilityEnabled && (
         <SolarSuitabilityTool view={view} onClose={() => setSolarSuitabilityEnabled(false)} />
       )}
+      
+      {areaHeatmapEnabled && (
+        <AreaHeatmapTool view={view} onClose={() => setAreaHeatmapEnabled(false)} />
+      )}
+
+      {/* Exhibition Tools Floating Button */}
+      <div style={{ position: 'absolute', bottom: 30, left: 20, zIndex: 100, display: 'flex', gap: 10 }}>
+        <button
+          onClick={() => setAreaHeatmapEnabled(!areaHeatmapEnabled)}
+          style={{
+            background: 'linear-gradient(135deg, #1e3a8a, #3b82f6)',
+            color: 'white', border: 'none', borderRadius: 8, padding: '10px 16px',
+            fontWeight: 700, fontSize: 14, cursor: 'pointer',
+            boxShadow: '0 4px 12px rgba(0,0,0,0.2)', display: 'flex', alignItems: 'center', gap: 8
+          }}
+        >
+          ðŸŒ Area Heatmap
+        </button>
+      </div>
       {view && (
         <SceneIdentifyTool
           view={view}

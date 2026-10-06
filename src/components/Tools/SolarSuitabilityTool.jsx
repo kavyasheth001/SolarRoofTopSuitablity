@@ -6,6 +6,9 @@ import SketchViewModel from "@arcgis/core/widgets/Sketch/SketchViewModel.js";
 import SimpleFillSymbol from "@arcgis/core/symbols/SimpleFillSymbol.js";
 import * as geometryEngine from "@arcgis/core/geometry/geometryEngine.js";
 import SearchLocationTool from './SearchLocationTool';
+import {
+  BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, CartesianGrid,
+} from 'recharts';
 
 const lodTitles = [
   'LoD 2 without Texture',
@@ -14,44 +17,240 @@ const lodTitles = [
   'Slum LoD 2 without Texture'
 ];
 
+/* ─── Animated Score Gauge ──────────────────────────────────────── */
 const ScoreGauge = ({ score }) => {
+  const [displayed, setDisplayed] = useState(0);
   const radius = 40;
   const strokeWidth = 8;
   const circumference = 2 * Math.PI * radius;
-  const dashoffset = circumference - (score / 100) * circumference;
-  
-  let color = '#ef4444'; // 0-40 red
-  if (score > 40 && score <= 70) color = '#f59e0b'; // amber
-  if (score > 70) color = '#22c55e'; // green
+  const dashoffset = circumference - (displayed / 100) * circumference;
+
+  let color = '#ef4444';
+  if (displayed > 40 && displayed <= 70) color = '#f59e0b';
+  if (displayed > 70) color = '#22c55e';
+
+  // Animate score count-up from 0 → target
+  useEffect(() => {
+    setDisplayed(0);
+    let frame;
+    const start = performance.now();
+    const duration = 1400;
+    const animate = (now) => {
+      const progress = Math.min((now - start) / duration, 1);
+      // ease-out cubic
+      const eased = 1 - Math.pow(1 - progress, 3);
+      setDisplayed(Math.round(eased * score));
+      if (progress < 1) frame = requestAnimationFrame(animate);
+    };
+    frame = requestAnimationFrame(animate);
+    return () => cancelAnimationFrame(frame);
+  }, [score]);
 
   return (
     <div className="flex flex-col items-center justify-center relative w-24 h-24">
+      {/* Glow ring */}
+      <div style={{
+        position: 'absolute', inset: -4, borderRadius: '50%',
+        boxShadow: `0 0 18px 4px ${color}40`,
+        animation: 'pulseGlow 2s ease-in-out infinite',
+        opacity: displayed === score ? 1 : 0,
+        transition: 'opacity 0.5s ease',
+      }} />
       <svg className="transform -rotate-90 w-24 h-24">
-        <circle
-          cx="48"
-          cy="48"
-          r={radius}
-          stroke="currentColor"
-          strokeWidth={strokeWidth}
-          fill="transparent"
-          className="text-gray-200"
-        />
-        <circle
-          cx="48"
-          cy="48"
-          r={radius}
-          stroke={color}
-          strokeWidth={strokeWidth}
-          fill="transparent"
-          strokeDasharray={circumference}
-          strokeDashoffset={dashoffset}
+        <circle cx="48" cy="48" r={radius} stroke="currentColor"
+          strokeWidth={strokeWidth} fill="transparent" className="text-gray-200" />
+        <circle cx="48" cy="48" r={radius} stroke={color}
+          strokeWidth={strokeWidth} fill="transparent"
+          strokeDasharray={circumference} strokeDashoffset={dashoffset}
           strokeLinecap="round"
-          className="transition-all duration-1000 ease-out"
-        />
+          style={{ transition: 'stroke-dashoffset 0.05s linear, stroke 0.3s ease' }} />
       </svg>
       <div className="absolute flex flex-col items-center justify-center">
-        <span className="text-xl font-bold text-gray-800">{score}</span>
+        <span className="text-xl font-bold text-gray-800">{displayed}</span>
       </div>
+      <style>{`@keyframes pulseGlow {
+        0%, 100% { transform: scale(1); opacity: 0.7; }
+        50% { transform: scale(1.08); opacity: 1; }
+      }`}</style>
+    </div>
+  );
+};
+
+/* ─── Hourly Sunlight Bar Chart ─────────────────────────────────── */
+const HourlySunlightChart = ({ hourlyResults }) => {
+  if (!hourlyResults || hourlyResults.length === 0) return null;
+
+  const data = hourlyResults.map(h => ({
+    hour: `${h.hour}:00`,
+    sunlit: Number(h.sunlitPct),
+    label: h.hour <= 11 ? `${h.hour} AM` : h.hour === 12 ? '12 PM' : `${h.hour - 12} PM`,
+  }));
+
+  const getBarColor = (pct) => {
+    if (pct >= 70) return '#22c55e';
+    if (pct >= 40) return '#f59e0b';
+    if (pct > 0) return '#f97316';
+    return '#374151';
+  };
+
+  return (
+    <div style={{ marginTop: 4 }}>
+      <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.08em', color: '#1e3a5f', padding: '6px 0 8px', borderBottom: '2px solid #bfdbfe' }}>
+        📊 HOURLY SUNLIGHT PROFILE
+      </div>
+      <div style={{ width: '100%', height: 180, marginTop: 8 }}>
+        <ResponsiveContainer width="100%" height="100%">
+          <BarChart data={data} margin={{ top: 8, right: 4, left: -20, bottom: 4 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
+            <XAxis dataKey="label" tick={{ fontSize: 9, fill: '#64748b' }} tickLine={false} axisLine={{ stroke: '#e2e8f0' }} />
+            <YAxis domain={[0, 100]} tick={{ fontSize: 9, fill: '#64748b' }} tickLine={false} axisLine={false}
+              tickFormatter={(v) => `${v}%`} />
+            <Tooltip
+              contentStyle={{ background: '#1e293b', border: 'none', borderRadius: 8, fontSize: 12, color: '#f1f5f9', boxShadow: '0 8px 24px rgba(0,0,0,0.4)' }}
+              labelStyle={{ color: '#94a3b8', fontWeight: 600 }}
+              formatter={(v) => [`${v}% sunlit`, 'Rooftop']}
+              cursor={{ fill: 'rgba(59,130,246,0.08)' }}
+            />
+            <Bar dataKey="sunlit" radius={[4, 4, 0, 0]} animationDuration={1200} animationBegin={200}>
+              {data.map((entry, i) => (
+                <Cell key={i} fill={getBarColor(entry.sunlit)} />
+              ))}
+            </Bar>
+          </BarChart>
+        </ResponsiveContainer>
+      </div>
+      <div style={{ display: 'flex', justifyContent: 'center', gap: 12, marginTop: 4, fontSize: 10, color: '#6b7280' }}>
+        <span><span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: 2, background: '#22c55e', marginRight: 3 }} />Good (≥70%)</span>
+        <span><span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: 2, background: '#f59e0b', marginRight: 3 }} />Moderate</span>
+        <span><span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: 2, background: '#374151', marginRight: 3 }} />No Sun</span>
+      </div>
+    </div>
+  );
+};
+
+/* ─── Smart AI Recommendations ──────────────────────────────────── */
+const SmartRecommendations = ({ result }) => {
+  if (!result) return null;
+
+  const recs = [];
+  const score = result.score;
+  const gen = Number(result.generation);
+  const capacity = Number(result.capacity);
+  const householdsEquiv = Math.round(gen / 1200); // avg Mumbai household ~1200 kWh/yr
+  const treesEquiv = Math.round(Number(result.co2Saved) * 1000 / 22); // 1 tree ~ 22kg CO2/yr
+
+  // Score-based primary recommendation
+  if (score >= 80) {
+    recs.push({
+      icon: '✅',
+      color: '#16a34a',
+      bg: '#f0fdf4',
+      border: '#bbf7d0',
+      title: 'Excellent Solar Candidate',
+      text: `This rooftop is highly suitable for solar panels. Estimated generation can power ~${householdsEquiv} average Mumbai household${householdsEquiv !== 1 ? 's' : ''} annually.`,
+    });
+  } else if (score >= 55) {
+    recs.push({
+      icon: '⚡',
+      color: '#d97706',
+      bg: '#fffbeb',
+      border: '#fde68a',
+      title: 'Good Potential with Optimization',
+      text: `Moderate shadow interference detected. Consider optimizing panel tilt angle (15-20° for Mumbai) and using micro-inverters to maximize output despite partial shading.`,
+    });
+  } else if (score >= 40) {
+    recs.push({
+      icon: '⚠️',
+      color: '#ea580c',
+      bg: '#fff7ed',
+      border: '#fed7aa',
+      title: 'Moderate Potential — Needs Assessment',
+      text: `Significant shadow interference from neighbouring buildings. Consider a detailed on-site survey. Bifacial panels may help capture reflected light.`,
+    });
+  } else {
+    recs.push({
+      icon: '🔴',
+      color: '#dc2626',
+      bg: '#fef2f2',
+      border: '#fecaca',
+      title: 'Low Solar Potential',
+      text: `Heavy shadow coverage makes this rooftop less viable. Consider nearby rooftops with better sun exposure, or explore community solar options.`,
+    });
+  }
+
+  // Environmental impact
+  if (treesEquiv > 0) {
+    recs.push({
+      icon: '🌳',
+      color: '#059669',
+      bg: '#ecfdf5',
+      border: '#a7f3d0',
+      title: 'Environmental Impact',
+      text: `Installing solar here saves ${result.co2Saved} tonnes of CO₂ per year — equivalent to planting ~${treesEquiv} trees annually.`,
+    });
+  }
+
+  // Financial insight
+  if (Number(result.paybackYears) > 0 && Number(result.paybackYears) <= 6) {
+    recs.push({
+      icon: '💰',
+      color: '#7c3aed',
+      bg: '#f5f3ff',
+      border: '#ddd6fe',
+      title: 'Strong ROI',
+      text: `Payback in just ${result.paybackYears} years. After that, you save ₹${Number(result.annualSavings).toLocaleString('en-IN')} every year — effectively free electricity for 20+ years.`,
+    });
+  } else if (Number(result.paybackYears) > 6) {
+    recs.push({
+      icon: '📊',
+      color: '#6366f1',
+      bg: '#eef2ff',
+      border: '#c7d2fe',
+      title: 'Long-term Investment',
+      text: `Payback period of ${result.paybackYears} years. Consider government subsidies (MNRE scheme provides 20-40% subsidy) to reduce this significantly.`,
+    });
+  }
+
+  // Seasonal warning based on sunny hours
+  if (result.sunnyHours <= 5) {
+    recs.push({
+      icon: '🌤️',
+      color: '#b45309',
+      bg: '#fffbeb',
+      border: '#fde68a',
+      title: 'Seasonal Consideration',
+      text: `Only ${result.sunnyHours} sunny hours detected. Performance may vary significantly between seasons. Winter months may see reduced output.`,
+    });
+  }
+
+  return (
+    <div style={{ marginTop: 4 }}>
+      <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.08em', color: '#1e3a5f', padding: '6px 0 2px', borderBottom: '2px solid #e0e7ff' }}>
+        🤖 SMART RECOMMENDATIONS
+      </div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 8 }}>
+        {recs.map((rec, i) => (
+          <div key={i} style={{
+            padding: '10px 12px',
+            background: rec.bg,
+            border: `1px solid ${rec.border}`,
+            borderRadius: 8,
+            borderLeft: `4px solid ${rec.color}`,
+            animation: `fadeSlideIn 0.4s ease-out ${i * 0.15}s both`,
+          }}>
+            <div style={{ fontWeight: 700, fontSize: 12, color: rec.color, marginBottom: 3 }}>
+              {rec.icon} {rec.title}
+            </div>
+            <div style={{ fontSize: 11, color: '#374151', lineHeight: 1.5 }}>
+              {rec.text}
+            </div>
+          </div>
+        ))}
+      </div>
+      <style>{`@keyframes fadeSlideIn {
+        from { opacity: 0; transform: translateY(8px); }
+        to { opacity: 1; transform: translateY(0); }
+      }`}</style>
     </div>
   );
 };
@@ -111,6 +310,16 @@ const SolarSuitabilityTool = ({ view, onClose }) => {
 
   const [simulating, setSimulating] = useState(false);
   const [simulationProgress, setSimulationProgress] = useState(0);
+
+  // --- Seasonal Analysis state ---
+  const seasonOptions = [
+    { id: 'today', label: 'Today', dayOfYear: null },
+    { id: 'summer', label: 'Summer Solstice (Jun 21)', dayOfYear: 172 },
+    { id: 'winter', label: 'Winter Solstice (Dec 21)', dayOfYear: 355 },
+    { id: 'equinox', label: 'Equinox (Mar 21)', dayOfYear: 80 },
+    { id: 'monsoon', label: 'Monsoon (Aug 15)', dayOfYear: 227 },
+  ];
+  const [selectedSeason, setSelectedSeason] = useState('today');
 
   // --- What-If Building Simulator state ---
   const [simulatedBuildings, setSimulatedBuildings] = useState([]);
@@ -574,6 +783,9 @@ const SolarSuitabilityTool = ({ view, onClose }) => {
 
   async function runShadowAnalysis() {
     setSimulating(true);
+
+    // Get the dayOfYear from selected season
+    const seasonDayOfYear = seasonOptions.find(s => s.id === selectedSeason)?.dayOfYear || null;
     setSimulationProgress(0);
 
     const attrs = selectedBuilding.attributes;
@@ -653,7 +865,7 @@ const SolarSuitabilityTool = ({ view, onClose }) => {
       setSimulationProgress(Math.round((i / hours.length) * 100));
 
       // Compute real solar position
-      const solar = getSolarPosition(hour);
+      const solar = getSolarPosition(hour, seasonDayOfYear);
 
       if (solar.altitudeDeg < 5) {
         hourlyResults.push({ hour, sunlitPct: 0, sunny: false });
@@ -756,7 +968,7 @@ const SolarSuitabilityTool = ({ view, onClose }) => {
     // --- 5. Compute final score from REAL data ---
     // Denominator = hours where sun altitude >= 5° (eligible hours), not all 13
     const eligibleHours = hourlyResults.filter(h => {
-      const solar = getSolarPosition(h.hour);
+      const solar = getSolarPosition(h.hour, seasonDayOfYear);
       return solar.altitudeDeg >= 5;
     }).length;
     const sunlightScore = eligibleHours > 0 ? (sunnyHours / eligibleHours) * 100 : 0;
@@ -790,7 +1002,7 @@ const SolarSuitabilityTool = ({ view, onClose }) => {
       // Re-run lightweight score ignoring simulated buildings
       let baseSunnyHours = 0;
       for (const hrData of hourlyResults) {
-        const solar = getSolarPosition(hrData.hour);
+        const solar = getSolarPosition(hrData.hour, seasonDayOfYear);
         if (solar.altitudeDeg < 5) continue;
         let baseFrac = 0;
         for (const neighbour of neighbourFeatures) {
@@ -838,6 +1050,7 @@ const SolarSuitabilityTool = ({ view, onClose }) => {
     setAnalysisResult({
       score: clampedScore,
       label: potentialLabel,
+      seasonLabel: seasonOptions.find(s => s.id === selectedSeason)?.label || 'Today',
       suitabilityClass,
       sunnyHours,
       avgSunlit,
@@ -1366,7 +1579,35 @@ const SolarSuitabilityTool = ({ view, onClose }) => {
                 )}
               </div>
 
-              {/* Step 3: Run Analysis */}
+              {/* Step 2.5: Season Selection */}
+              <div style={{
+                margin: '8px 0', padding: '10px 12px',
+                background: '#f0f9ff', border: '1px solid #bae6fd',
+                borderRadius: 8, borderLeft: '3px solid #0ea5e9',
+              }}>
+                <div style={{ fontWeight: 600, fontSize: 12, color: '#0369a1', marginBottom: 6 }}>
+                  ðŸ—“ï¸ Step 3: Select Season
+                </div>
+                <select
+                  value={selectedSeason}
+                  onChange={(e) => setSelectedSeason(e.target.value)}
+                  style={{
+                    width: '100%', padding: '7px 10px', borderRadius: 6,
+                    border: '1px solid #7dd3fc', background: 'white',
+                    fontSize: 12, color: '#0c4a6e', cursor: 'pointer',
+                    outline: 'none',
+                  }}
+                >
+                  {seasonOptions.map(opt => (
+                    <option key={opt.id} value={opt.id}>{opt.label}</option>
+                  ))}
+                </select>
+                <div style={{ fontSize: 10, color: '#64748b', marginTop: 4 }}>
+                  Different seasons have different sun angles â€” winter sun is lower, causing more shadows
+                </div>
+              </div>
+
+              {/* Step 4: Run Analysis */}
               <div className="flex gap-2 pt-1">
                 <button
                   onClick={runAnalysis}
@@ -1417,6 +1658,11 @@ const SolarSuitabilityTool = ({ view, onClose }) => {
                   <div style={{ fontSize: 11, color: '#6b7280', marginTop: 2 }}>
                     Class: <strong style={{ color: '#1e3a5f' }}>{analysisResult.suitabilityClass}</strong>
                   </div>
+                  {analysisResult.seasonLabel && analysisResult.seasonLabel !== 'Today' && (
+                    <div style={{ fontSize: 10, color: '#0369a1', marginTop: 4, background: '#e0f2fe', padding: '2px 8px', borderRadius: 4, display: 'inline-block' }}>
+                      ðŸ—“ï¸ {analysisResult.seasonLabel}
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -1469,6 +1715,9 @@ const SolarSuitabilityTool = ({ view, onClose }) => {
                   </div>
                 ))}
               </div>
+
+              {/* ── Hourly Sunlight Bar Chart ── */}
+              <HourlySunlightChart hourlyResults={analysisResult.hourlyResults} />
 
               {/* ── Rooftop & Panels ── */}
               <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.08em', color: '#1e3a5f', padding: '6px 0 2px', borderBottom: '2px solid #dcfce7' }}>
@@ -1523,6 +1772,9 @@ const SolarSuitabilityTool = ({ view, onClose }) => {
                   </div>
                 ))}
               </div>
+
+              {/* ── Smart AI Recommendations ── */}
+              <SmartRecommendations result={analysisResult} />
 
               {/* ── Daylight Widget ── */}
               <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.08em', color: '#6b7280', padding: '10px 0 4px', borderTop: '1px solid #e5e7eb' }}>
