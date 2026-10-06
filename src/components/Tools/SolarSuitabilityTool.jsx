@@ -363,6 +363,7 @@ const SolarSuitabilityTool = ({ view, onClose }) => {
 
   // --- Time Slider & Methodology ---
   const [timeSliderHour, setTimeSliderHour] = useState(12);
+  const [isPlayingShadow, setIsPlayingShadow] = useState(false);
   const [showMethodology, setShowMethodology] = useState(false);
   const [editingSimId, setEditingSimId] = useState(null);
   const [editFloorValue, setEditFloorValue] = useState(8);
@@ -2204,6 +2205,13 @@ const SolarSuitabilityTool = ({ view, onClose }) => {
                     SHADOW VISUALISATION â€” TIME OF DAY
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <button
+                      onClick={() => setIsPlayingShadow(p => !p)}
+                      style={{ background: 'none', border: 'none', color: '#f59e0b', cursor: 'pointer', fontSize: 16, display: 'flex', alignItems: 'center' }}
+                      title={isPlayingShadow ? 'Pause' : 'Play'}
+                    >
+                      {isPlayingShadow ? '\u23F8' : '\u25B6'}
+                    </button>
                     <span style={{ fontSize: 11, color: '#64748b', whiteSpace: 'nowrap' }}>6 AM</span>
                     <input
                       type="range" min={6} max={18} step={0.25} value={timeSliderHour}
