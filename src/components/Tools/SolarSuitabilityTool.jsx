@@ -10,6 +10,7 @@ import SearchLocationTool from './SearchLocationTool';
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, CartesianGrid,
 } from 'recharts';
+import { FaCheckCircle, FaBolt, FaExclamationTriangle, FaCircle, FaTree, FaMoneyBillWave, FaChartBar, FaSun, FaRobot } from 'react-icons/fa';
 
 const lodTitles = [
   'LoD 2 without Texture',
@@ -167,7 +168,7 @@ const SmartRecommendations = ({ result }) => {
   // Score-based primary recommendation
   if (score >= 80) {
     recs.push({
-      icon: '\u2705',
+      icon: <FaCheckCircle />,
       color: '#16a34a',
       bg: '#f0fdf4',
       border: '#bbf7d0',
@@ -176,7 +177,7 @@ const SmartRecommendations = ({ result }) => {
     });
   } else if (score >= 55) {
     recs.push({
-      icon: '\u26A1',
+      icon: <FaBolt />,
       color: '#d97706',
       bg: '#fffbeb',
       border: '#fde68a',
@@ -185,7 +186,7 @@ const SmartRecommendations = ({ result }) => {
     });
   } else if (score >= 40) {
     recs.push({
-      icon: '\u26A0\uFE0F',
+      icon: <FaExclamationTriangle />,
       color: '#ea580c',
       bg: '#fff7ed',
       border: '#fed7aa',
@@ -194,7 +195,7 @@ const SmartRecommendations = ({ result }) => {
     });
   } else {
     recs.push({
-      icon: '\uD83D\uDD34',
+      icon: <FaCircle />,
       color: '#dc2626',
       bg: '#fef2f2',
       border: '#fecaca',
@@ -206,7 +207,7 @@ const SmartRecommendations = ({ result }) => {
   // Environmental impact
   if (treesEquiv > 0) {
     recs.push({
-      icon: '\uD83C\uDF33',
+      icon: <FaTree />,
       color: '#059669',
       bg: '#ecfdf5',
       border: '#a7f3d0',
@@ -218,7 +219,7 @@ const SmartRecommendations = ({ result }) => {
   // Financial insight
   if (Number(result.paybackYears) > 0 && Number(result.paybackYears) <= 6) {
     recs.push({
-      icon: '\uD83D\uDCB0',
+      icon: <FaMoneyBillWave />,
       color: '#7c3aed',
       bg: '#f5f3ff',
       border: '#ddd6fe',
@@ -227,7 +228,7 @@ const SmartRecommendations = ({ result }) => {
     });
   } else if (Number(result.paybackYears) > 6) {
     recs.push({
-      icon: '\uD83D\uDCCA',
+      icon: <FaChartBar />,
       color: '#6366f1',
       bg: '#eef2ff',
       border: '#c7d2fe',
@@ -239,7 +240,7 @@ const SmartRecommendations = ({ result }) => {
   // Seasonal warning based on sunny hours
   if (result.sunnyHours <= 5) {
     recs.push({
-      icon: '\uD83C\uDF24\uFE0F',
+      icon: <FaSun />,
       color: '#b45309',
       bg: '#fffbeb',
       border: '#fde68a',
@@ -251,7 +252,7 @@ const SmartRecommendations = ({ result }) => {
   return (
     <div style={{ marginTop: 4 }}>
       <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.08em', color: '#1e3a5f', padding: '6px 0 2px', borderBottom: '2px solid #e0e7ff' }}>
-        {'\uD83E\uDD16'} SMART RECOMMENDATIONS
+        <FaRobot style={{ marginRight: 6 }} /> SMART RECOMMENDATIONS
       </div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 8 }}>
         {recs.map((rec, i) => (
