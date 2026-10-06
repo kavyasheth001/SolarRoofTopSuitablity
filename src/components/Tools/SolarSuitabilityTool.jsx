@@ -1,4 +1,4 @@
-﻿import React, { useEffect, useRef, useState, useCallback } from 'react';
+import React, { useEffect, useRef, useState, useCallback } from 'react';
 import Daylight from "@arcgis/core/widgets/Daylight.js";
 import Graphic from "@arcgis/core/Graphic.js";
 import GraphicsLayer from "@arcgis/core/layers/GraphicsLayer.js";
@@ -54,7 +54,7 @@ const ScoreGauge = ({ score }) => {
   if (displayed > 40 && displayed <= 70) color = '#f59e0b';
   if (displayed > 70) color = '#22c55e';
 
-  // Animate score count-up from 0 â†’ target
+  // Animate score count-up from 0 → target
   useEffect(() => {
     setDisplayed(0);
     let frame;
@@ -121,7 +121,7 @@ const HourlySunlightChart = ({ hourlyResults }) => {
   return (
     <div style={{ marginTop: 4 }}>
       <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.08em', color: '#1e3a5f', padding: '6px 0 8px', borderBottom: '2px solid #bfdbfe' }}>
-        ðŸ“Š HOURLY SUNLIGHT PROFILE
+        📊 HOURLY SUNLIGHT PROFILE
       </div>
       <div style={{ width: '100%', height: 180, marginTop: 8 }}>
         <ResponsiveContainer width="100%" height="100%">
@@ -145,7 +145,7 @@ const HourlySunlightChart = ({ hourlyResults }) => {
         </ResponsiveContainer>
       </div>
       <div style={{ display: 'flex', justifyContent: 'center', gap: 12, marginTop: 4, fontSize: 10, color: '#6b7280' }}>
-        <span><span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: 2, background: '#22c55e', marginRight: 3 }} />Good (â‰¥70%)</span>
+        <span><span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: 2, background: '#22c55e', marginRight: 3 }} />Good (≥70%)</span>
         <span><span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: 2, background: '#f59e0b', marginRight: 3 }} />Moderate</span>
         <span><span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: 2, background: '#374151', marginRight: 3 }} />No Sun</span>
       </div>
@@ -167,7 +167,7 @@ const SmartRecommendations = ({ result }) => {
   // Score-based primary recommendation
   if (score >= 80) {
     recs.push({
-      icon: 'âœ…',
+      icon: '\u2705',
       color: '#16a34a',
       bg: '#f0fdf4',
       border: '#bbf7d0',
@@ -176,25 +176,25 @@ const SmartRecommendations = ({ result }) => {
     });
   } else if (score >= 55) {
     recs.push({
-      icon: 'âš¡',
+      icon: '\u26A1',
       color: '#d97706',
       bg: '#fffbeb',
       border: '#fde68a',
       title: 'Good Potential with Optimization',
-      text: `Moderate shadow interference detected. Consider optimizing panel tilt angle (15-20Â&deg; for Mumbai) and using micro-inverters to maximize output despite partial shading.`,
+      text: `Moderate shadow interference detected. Consider optimizing panel tilt angle (15-20\u00B0 for Mumbai) and using micro-inverters to maximize output despite partial shading.`,
     });
   } else if (score >= 40) {
     recs.push({
-      icon: 'âš ï¸',
+      icon: '\u26A0\uFE0F',
       color: '#ea580c',
       bg: '#fff7ed',
       border: '#fed7aa',
-      title: 'Moderate Potential â€” Needs Assessment',
+      title: 'Moderate Potential \u2014 Needs Assessment',
       text: `Significant shadow interference from neighbouring buildings. Consider a detailed on-site survey. Bifacial panels may help capture reflected light.`,
     });
   } else {
     recs.push({
-      icon: 'ðŸ”´',
+      icon: '\uD83D\uDD34',
       color: '#dc2626',
       bg: '#fef2f2',
       border: '#fecaca',
@@ -206,28 +206,28 @@ const SmartRecommendations = ({ result }) => {
   // Environmental impact
   if (treesEquiv > 0) {
     recs.push({
-      icon: 'ðŸŒ³',
+      icon: '\uD83C\uDF33',
       color: '#059669',
       bg: '#ecfdf5',
       border: '#a7f3d0',
       title: 'Environmental Impact',
-      text: `Installing solar here saves ${result.co2Saved} tonnes of COâ‚‚ per year â€” equivalent to planting ~${treesEquiv} trees annually.`,
+      text: `Installing solar here saves ${result.co2Saved} tonnes of CO\u2082 per year \u2014 equivalent to planting ~${treesEquiv} trees annually.`,
     });
   }
 
   // Financial insight
   if (Number(result.paybackYears) > 0 && Number(result.paybackYears) <= 6) {
     recs.push({
-      icon: 'ðŸ’&deg;',
+      icon: '\uD83D\uDCB0',
       color: '#7c3aed',
       bg: '#f5f3ff',
       border: '#ddd6fe',
       title: 'Strong ROI',
-      text: `Payback in just ${result.paybackYears} years. After that, you save â‚¹${Number(result.annualSavings).toLocaleString('en-IN')} every year â€” effectively free electricity for 20+ years.`,
+      text: `Payback in just ${result.paybackYears} years. After that, you save \u20B9${Number(result.annualSavings).toLocaleString('en-IN')} every year \u2014 effectively free electricity for 20+ years.`,
     });
   } else if (Number(result.paybackYears) > 6) {
     recs.push({
-      icon: 'ðŸ“Š',
+      icon: '\uD83D\uDCCA',
       color: '#6366f1',
       bg: '#eef2ff',
       border: '#c7d2fe',
@@ -239,7 +239,7 @@ const SmartRecommendations = ({ result }) => {
   // Seasonal warning based on sunny hours
   if (result.sunnyHours <= 5) {
     recs.push({
-      icon: 'ðŸŒ¤ï¸',
+      icon: '\uD83C\uDF24\uFE0F',
       color: '#b45309',
       bg: '#fffbeb',
       border: '#fde68a',
@@ -251,7 +251,7 @@ const SmartRecommendations = ({ result }) => {
   return (
     <div style={{ marginTop: 4 }}>
       <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.08em', color: '#1e3a5f', padding: '6px 0 2px', borderBottom: '2px solid #e0e7ff' }}>
-        ðŸ¤– SMART RECOMMENDATIONS
+        \uD83E\uDD16 SMART RECOMMENDATIONS
       </div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 8 }}>
         {recs.map((rec, i) => (
@@ -575,7 +575,7 @@ const SolarSuitabilityTool = ({ view, onClose }) => {
         ? rawAddress
         : `Building #${attributes['bld_id'] ?? attributes['objectid'] ?? '?'}`;
 
-    // Floors: stored as "G+5", "G+3", "G+0", "G" â€” show as-is
+    // Floors: stored as "G+5", "G+3", "G+0", "G" — show as-is
     const noFloorsRaw = attributes['no_floors'];
     let floorsDisplay = null;
     if (noFloorsRaw != null && String(noFloorsRaw).trim() !== '') {
@@ -629,7 +629,7 @@ const SolarSuitabilityTool = ({ view, onClose }) => {
         }
         if (!highlightHeight) highlightHeight = 8; // fallback
 
-        // 3D extruded highlight â€” glowing cyan translucent building overlay
+        // 3D extruded highlight — glowing cyan translucent building overlay
         const highlight3D = new GImport({
           geometry: feature.geometry,
           symbol: new PolygonSymbol3D({
@@ -663,7 +663,7 @@ const SolarSuitabilityTool = ({ view, onClose }) => {
       console.warn('3D Highlight failed:', err);
     }
 
-    // Zoom to building â€” closer zoom (20) so building is clearly visible
+    // Zoom to building — closer zoom (20) so building is clearly visible
     if (feature.geometry) {
       try {
         await view.goTo(
@@ -688,7 +688,7 @@ const SolarSuitabilityTool = ({ view, onClose }) => {
 
     clickHandle.current = view.on("click", async (event) => {
       try {
-        // Step 1: Try hitTest first â€” returns actual graphic linked to layerView
+        // Step 1: Try hitTest first — returns actual graphic linked to layerView
         const hitResult = await view.hitTest(event, { include: [buildingLayer] });
 
         let feature = null;
@@ -706,7 +706,7 @@ const SolarSuitabilityTool = ({ view, onClose }) => {
             if (res.features.length > 0) feature = res.features[0];
           }
         } else {
-          // Step 2: Fallback â€” spatial query at click point
+          // Step 2: Fallback — spatial query at click point
           const q = buildingLayer.createQuery();
           q.geometry = event.mapPoint;
           q.spatialRelationship = 'intersects';
@@ -805,7 +805,7 @@ const SolarSuitabilityTool = ({ view, onClose }) => {
    * capture both roof and wall shadows, avoiding self-intersecting polygons.
    */
   function computeShadowPolygon(neighbourGeom2D, nHeight, selectedHeight, solar) {
-    if (solar.altitudeRad <= 0.087) return null; // sun below ~5Â&deg;
+    if (solar.altitudeRad <= 0.087) return null; // sun below ~5°
 
     const effectiveHeight = Math.max(0, nHeight - (selectedHeight || 0));
     if (effectiveHeight <= 0) return null;
@@ -862,7 +862,7 @@ const SolarSuitabilityTool = ({ view, onClose }) => {
 
   /**
    * Compute the 2D convex hull of a set of [x,y] points.
-   * Uses Andrew's monotone chain algorithm â€” O(n log n).
+   * Uses Andrew's monotone chain algorithm — O(n log n).
    */
   function convexHull2D(points) {
     const pts = points.slice().sort((a, b) => a[0] - b[0] || a[1] - b[1]);
@@ -923,7 +923,7 @@ const SolarSuitabilityTool = ({ view, onClose }) => {
     const selIsWM = _isWM(selectedGeom2D.spatialReference);
 
     if (viewIsWM && !selIsWM) {
-      // Selected building is in geographic (4326), view is WM â€” project to WM
+      // Selected building is in geographic (4326), view is WM — project to WM
       try {
         const projected = webMercatorUtils.geographicToWebMercator(selectedGeom2D);
         selectedGeom2D = {
@@ -931,12 +931,12 @@ const SolarSuitabilityTool = ({ view, onClose }) => {
           rings: projected.rings.map(r => r.map(v => [v[0], v[1]])),
           spatialReference: projected.spatialReference,
         };
-        console.log('[Solar] Projected selectedGeom2D from 4326 â†’ WM');
+        console.log('[Solar] Projected selectedGeom2D from 4326 → WM');
       } catch (projErr) {
         console.warn('[Solar] Failed to project selectedGeom2D to WM:', projErr);
       }
     } else if (!viewIsWM && selIsWM) {
-      // Selected building is in WM, view is geographic â€” project to geographic
+      // Selected building is in WM, view is geographic — project to geographic
       try {
         const projected = webMercatorUtils.webMercatorToGeographic(selectedGeom2D);
         selectedGeom2D = {
@@ -944,7 +944,7 @@ const SolarSuitabilityTool = ({ view, onClose }) => {
           rings: projected.rings.map(r => r.map(v => [v[0], v[1]])),
           spatialReference: projected.spatialReference,
         };
-        console.log('[Solar] Projected selectedGeom2D from WM â†’ 4326');
+        console.log('[Solar] Projected selectedGeom2D from WM → 4326');
       } catch (projErr) {
         console.warn('[Solar] Failed to project selectedGeom2D to 4326:', projErr);
       }
@@ -980,7 +980,7 @@ const SolarSuitabilityTool = ({ view, onClose }) => {
       q.spatialRelationship = 'intersects';
       q.outFields = ['objectid', 'height', 'no_floors'];
       q.returnGeometry = true;
-      q.outSpatialReference = analysisSR;  // â† Force same SR as selected building
+      q.outSpatialReference = analysisSR;  // ← Force same SR as selected building
       q.num = 100;
       q.orderByFields = ['height DESC'];
       q.where = `objectid <> ${attrs['objectid']} AND (height > ${(estimatedHeight || 0)} OR no_floors IS NOT NULL)`;
@@ -991,7 +991,7 @@ const SolarSuitabilityTool = ({ view, onClose }) => {
       console.warn("Neighbour query failed:", err);
     }
 
-    // Snapshot simulated buildings â€” project each to the analysis SR for consistency
+    // Snapshot simulated buildings — project each to the analysis SR for consistency
     const simSnapshot = simulatedBuildings.map(sb => {
       let geom = {
         type: 'polygon',
@@ -1006,14 +1006,14 @@ const SolarSuitabilityTool = ({ view, onClose }) => {
         try {
           const proj = webMercatorUtils.webMercatorToGeographic(geom);
           geom = { type: 'polygon', rings: proj.rings.map(r => r.map(v => [v[0], v[1]])), spatialReference: proj.spatialReference };
-          console.log('[SimBuilding] Projected sim building from WM â†’ 4326');
-        } catch (e) { console.warn('[SimBuilding] Projection WMâ†’4326 failed:', e); }
+          console.log('[SimBuilding] Projected sim building from WM → 4326');
+        } catch (e) { console.warn('[SimBuilding] Projection WM→4326 failed:', e); }
       } else if (!simIsWM && analysisIsWM) {
         try {
           const proj = webMercatorUtils.geographicToWebMercator(geom);
           geom = { type: 'polygon', rings: proj.rings.map(r => r.map(v => [v[0], v[1]])), spatialReference: proj.spatialReference };
-          console.log('[SimBuilding] Projected sim building from 4326 â†’ WM');
-        } catch (e) { console.warn('[SimBuilding] Projection 4326â†’WM failed:', e); }
+          console.log('[SimBuilding] Projected sim building from 4326 → WM');
+        } catch (e) { console.warn('[SimBuilding] Projection 4326→WM failed:', e); }
       }
 
       return {
@@ -1091,7 +1091,7 @@ const SolarSuitabilityTool = ({ view, onClose }) => {
             console.log(`[SimShadow] h=${hour} nH=${nHeight} effH=${nHeight - (estimatedHeight || 0)} shadowLen=${(Math.max(0, nHeight - (estimatedHeight || 0)) / Math.tan(solar.altitudeRad)).toFixed(1)}m`);
           }
         } else if (neighbour._isSim && (hour === 8 || hour === 12 || hour === 16)) {
-          console.warn(`[SimShadow] h=${hour} shadow polygon NULL â€” nH=${nHeight} selH=${estimatedHeight} effH=${nHeight - (estimatedHeight || 0)}`);
+          console.warn(`[SimShadow] h=${hour} shadow polygon NULL — nH=${nHeight} selH=${estimatedHeight} effH=${nHeight - (estimatedHeight || 0)}`);
         }
       }
 
@@ -1128,9 +1128,9 @@ const SolarSuitabilityTool = ({ view, onClose }) => {
       // Debug at key hours
       if (hour === 8 || hour === 12 || hour === 16) {
         console.log(`=== HOUR ${hour} ===`);
-        console.log(`Sun alt: ${solar.altitudeDeg.toFixed(1)}Â&deg;, azimuth: ${(solar.azimuthRad * 180 / Math.PI).toFixed(1)}Â&deg;`);
+        console.log(`Sun alt: ${solar.altitudeDeg.toFixed(1)}°, azimuth: ${(solar.azimuthRad * 180 / Math.PI).toFixed(1)}°`);
         console.log(`Shadow polygons built: ${shadowPolygons.length}`);
-        console.log(`Shadow fraction: ${totalShadowFraction.toFixed(3)} â†’ sunlit: ${((1 - totalShadowFraction) * 100).toFixed(1)}%`);
+        console.log(`Shadow fraction: ${totalShadowFraction.toFixed(3)} → sunlit: ${((1 - totalShadowFraction) * 100).toFixed(1)}%`);
       }
 
       const sunlitPct = Math.max(0, (1 - totalShadowFraction) * 100);
@@ -1147,7 +1147,7 @@ const SolarSuitabilityTool = ({ view, onClose }) => {
     view.environment.lighting.date = noon;
 
     // --- 5. Compute final score from REAL data ---
-    // Denominator = hours where sun altitude >= 5Â&deg; (eligible hours), not all 13
+    // Denominator = hours where sun altitude >= 5° (eligible hours), not all 13
     const eligibleHours = hourlyResults.filter(h => {
       const solar = getSolarPosition(h.hour, seasonDayOfYear);
       return solar.altitudeDeg >= 5;
@@ -1231,17 +1231,17 @@ const SolarSuitabilityTool = ({ view, onClose }) => {
     // --- Extended metrics for dashboard & PDF ---
     const capacityNum = parseFloat(capacity);
     const generationNum = parseFloat(generation);
-    // COâ‚‚ savings: 0.82 kg per kWh (India grid emission factor)
+    // CO₂ savings: 0.82 kg per kWh (India grid emission factor)
     const co2Saved = (generationNum * 0.82 / 1000).toFixed(2); // tonnes/yr
-    // Financial: avg tariff â‚¹7/unit in Mumbai
-    const annualSavings = (generationNum * 7).toFixed(0); // â‚¹/yr
-    // Installation cost: â‚¹60,000 per kWp
+    // Financial: avg tariff ₹7/unit in Mumbai
+    const annualSavings = (generationNum * 7).toFixed(0); // ₹/yr
+    // Installation cost: ₹60,000 per kWp
     const installCost = (capacityNum * 60000).toFixed(0);
     // Payback period
     const paybackYears = parseFloat(annualSavings) > 0
       ? (parseFloat(installCost) / parseFloat(annualSavings)).toFixed(1)
-      : 'â€”';
-    // Panel count: 330W panel, 1.7mÂ² each
+      : '—';
+    // Panel count: 330W panel, 1.7m² each
     const panelCount = Math.floor((usableArea * 0.85) / 1.7);
     // Roof orientation classification based on score ranges
     let suitabilityClass = 'Highly Suitable';
@@ -1259,8 +1259,8 @@ const SolarSuitabilityTool = ({ view, onClose }) => {
       hourlyResults,
       area: area.toFixed(1),
       usableArea: usableArea.toFixed(1),
-      floors: floors ?? 'â€”',
-      height: estimatedHeight ? estimatedHeight.toFixed(1) : 'â€”',
+      floors: floors ?? '—',
+      height: estimatedHeight ? estimatedHeight.toFixed(1) : '—',
       capacity,
       generation,
       co2Saved,
@@ -1352,7 +1352,7 @@ const SolarSuitabilityTool = ({ view, onClose }) => {
     view.map.add(sketchLayer);
     sketchLayerRef.current = sketchLayer;
 
-    // 2. Create SketchViewModel â€” exact pattern from TrueGeoMap
+    // 2. Create SketchViewModel — exact pattern from TrueGeoMap
     const sketchVM = new SketchViewModel({
       view,
       layer: sketchLayer,
@@ -1432,7 +1432,7 @@ const SolarSuitabilityTool = ({ view, onClose }) => {
 
     if (isDesigned) setIsDrawingDesigned(true);
     else setIsPlacingSimBuilding(true);
-    setDrawingInstructions('Click to add vertices Â· Double-click to complete polygon');
+    setDrawingInstructions('Click to add vertices · Double-click to complete polygon');
   };
 
 
@@ -1598,7 +1598,7 @@ const SolarSuitabilityTool = ({ view, onClose }) => {
     pdf.setFontSize(14); pdf.setFont('helvetica', 'bold');
     pdf.text(buildingName, margin, y); y += 6;
     pdf.setFontSize(9); pdf.setFont('helvetica', 'normal'); pdf.setTextColor(80, 80, 80);
-    pdf.text(`Floors: ${r.floors}   Height: ${r.height !== 'â€”' ? r.height + ' m' : 'â€”'}   Neighbours analysed: ${r.neighbourCount}`, margin, y); y += 5;
+    pdf.text(`Floors: ${r.floors}   Height: ${r.height !== '—' ? r.height + ' m' : '—'}   Neighbours analysed: ${r.neighbourCount}`, margin, y); y += 5;
     pdf.text(`Suitability Class: ${r.suitabilityClass}`, margin, y); y += 8;
 
     // -- MAP SCREENSHOT ---------------------------------------
@@ -1610,7 +1610,7 @@ const SolarSuitabilityTool = ({ view, onClose }) => {
     pdf.setFillColor(...scoreColor);
     pdf.rect(margin, y, W - margin * 2, 14, 'F');
     pdf.setTextColor(255, 255, 255); pdf.setFontSize(13); pdf.setFont('helvetica', 'bold');
-    pdf.text(`Suitability Score: ${r.score} / 100  â€”  ${r.label}`, margin + 4, y + 9.5);
+    pdf.text(`Suitability Score: ${r.score} / 100  —  ${r.label}`, margin + 4, y + 9.5);
     y += 20;
 
     // -- METRICS TABLE ----------------------------------------
@@ -1620,14 +1620,14 @@ const SolarSuitabilityTool = ({ view, onClose }) => {
     const metrics = [
       ['Sunny Hours (out of 13)', `${r.sunnyHours} hrs`],
       ['Average Rooftop Sunlit', `${r.avgSunlit}%`],
-      ['Total Rooftop Area', `${r.area} mÂ²`],
-      ['Usable Area (70%)', `${r.usableArea} mÂ²`],
+      ['Total Rooftop Area', `${r.area} m²`],
+      ['Usable Area (70%)', `${r.usableArea} m²`],
       ['Estimated Panel Count', `${r.panelCount} panels (330W each)`],
       ['Estimated Capacity', `${r.capacity} kWp`],
       ['Estimated Annual Generation', `${r.generation} kWh/yr`],
-      ['COâ‚‚ Emission Saved', `${r.co2Saved} tonnes/yr`],
-      ['Annual Electricity Savings', `â‚¹${Number(r.annualSavings).toLocaleString('en-IN')}/yr`],
-      ['Installation Cost (est.)', `â‚¹${Number(r.installCost).toLocaleString('en-IN')}`],
+      ['CO₂ Emission Saved', `${r.co2Saved} tonnes/yr`],
+      ['Annual Electricity Savings', `₹${Number(r.annualSavings).toLocaleString('en-IN')}/yr`],
+      ['Installation Cost (est.)', `₹${Number(r.installCost).toLocaleString('en-IN')}`],
       ['Estimated Payback Period', `${r.paybackYears} years`],
     ];
 
@@ -1647,7 +1647,7 @@ const SolarSuitabilityTool = ({ view, onClose }) => {
       pdf.setFillColor(245, 158, 11);
       pdf.rect(margin, y, W - margin * 2, 8, 'F');
       pdf.setTextColor(255, 255, 255); pdf.setFontSize(10); pdf.setFont('helvetica', 'bold');
-      pdf.text('âš¡ What-If Impact Analysis', margin + 4, y + 5.5);
+      pdf.text('⚡ What-If Impact Analysis', margin + 4, y + 5.5);
       y += 12;
       pdf.setFontSize(9); pdf.setFont('helvetica', 'normal'); pdf.setTextColor(80, 80, 80);
       pdf.text(`Baseline score (without simulated buildings): ${r.baselineScore}/100`, margin + 4, y); y += 5;
@@ -1661,7 +1661,7 @@ const SolarSuitabilityTool = ({ view, onClose }) => {
     if (y < H - 30) {
       pdf.setDrawColor(200, 200, 200); pdf.line(margin, y, W - margin, y); y += 5;
       pdf.setFontSize(7); pdf.setFont('helvetica', 'italic'); pdf.setTextColor(140, 140, 140);
-      const note = 'Methodology: Shadow simulation using solar position (azimuth/altitude) at Mumbai (19.076Â&deg;N, 72.877Â&deg;E). Score = 50% sunlight hours + 20% area + 10% height + 20% irradiance (fixed 92). COâ‚‚ factor: 0.82 kg/kWh (India grid). Tariff: â‚¹7/unit. Install cost: â‚¹60,000/kWp.';
+      const note = 'Methodology: Shadow simulation using solar position (azimuth/altitude) at Mumbai (19.076°N, 72.877°E). Score = 50% sunlight hours + 20% area + 10% height + 20% irradiance (fixed 92). CO₂ factor: 0.82 kg/kWh (India grid). Tariff: ₹7/unit. Install cost: ₹60,000/kWp.';
       const lines = pdf.splitTextToSize(note, W - margin * 2);
       pdf.text(lines, margin, y);
     }
@@ -1702,22 +1702,22 @@ const SolarSuitabilityTool = ({ view, onClose }) => {
               {
                 title: 'Overall Suitability Score',
                 color: '#1e3a5f',
-                content: 'Score = (Sunlight % x 0.50) + (Area Score x 0.20) + (Height Score x 0.10) + (Irradiance Score x 0.20). Each component is normalised to 0â€“100 before weighting. The sunlight component is the most influential at 50%.',
+                content: 'Score = (Sunlight % x 0.50) + (Area Score x 0.20) + (Height Score x 0.10) + (Irradiance Score x 0.20). Each component is normalised to 0–100 before weighting. The sunlight component is the most influential at 50%.',
               },
               {
                 title: 'Shadow & Sunlight Hours',
                 color: '#1e40af',
-                content: 'Sun position (altitude and azimuth) is computed for each hour from 6 AM to 6 PM using the solar position algorithm at Mumbai\'s latitude (19.076Â&deg;N). For each hour, shadow polygons from all neighbouring buildings (within 200 m) are projected using the effective height difference. An hour is counted as "sunny" if less than 70% of the rooftop area is covered by shadow.',
+                content: 'Sun position (altitude and azimuth) is computed for each hour from 6 AM to 6 PM using the solar position algorithm at Mumbai\'s latitude (19.076°N). For each hour, shadow polygons from all neighbouring buildings (within 200 m) are projected using the effective height difference. An hour is counted as "sunny" if less than 70% of the rooftop area is covered by shadow.',
               },
               {
                 title: 'Area Score',
                 color: '#15803d',
-                content: 'Rooftop area is calculated from the building polygon geometry using geodesic area. A building with â‰¥100 mÂ² scores 100; below that it is proportionally scaled. 70% of the total rooftop area is considered usable for panel placement (accounting for setbacks, obstructions, HVAC equipment).',
+                content: 'Rooftop area is calculated from the building polygon geometry using geodesic area. A building with ≥100 m² scores 100; below that it is proportionally scaled. 70% of the total rooftop area is considered usable for panel placement (accounting for setbacks, obstructions, HVAC equipment).',
               },
               {
                 title: 'Height Score',
                 color: '#15803d',
-                content: 'Taller buildings receive a slight bonus since they are less likely to be shaded by neighbours. The height score is calculated as min(100, height / 30 Ã&#8212; 100). A building â‰¥30 m scores 100. This component carries only 10% weight in the final score.',
+                content: 'Taller buildings receive a slight bonus since they are less likely to be shaded by neighbours. The height score is calculated as min(100, height / 30 × 100). A building ≥30 m scores 100. This component carries only 10% weight in the final score.',
               },
               {
                 title: 'Solar Irradiance Score',
@@ -1727,22 +1727,22 @@ const SolarSuitabilityTool = ({ view, onClose }) => {
               {
                 title: 'Panel Count & System Capacity',
                 color: '#b45309',
-                content: 'Panel Count = Usable Area / 2 mÂ² (approximate footprint per 330 W panel). System Capacity (kWp) = Panel Count Ã&#8212; 330 W / 1000. Annual Generation (kWh) = Capacity Ã&#8212; 1,500 kWh/kWp (Mumbai irradiance factor).',
+                content: 'Panel Count = Usable Area / 2 m² (approximate footprint per 330 W panel). System Capacity (kWp) = Panel Count × 330 W / 1000. Annual Generation (kWh) = Capacity × 1,500 kWh/kWp (Mumbai irradiance factor).',
               },
               {
                 title: 'Financial Estimates',
                 color: '#be185d',
-                content: 'Annual Savings = Annual Generation Ã&#8212; â‚¹7/unit (average Mumbai grid tariff). Installation Cost = Capacity Ã&#8212; â‚¹60,000/kWp (industry standard for rooftop solar in Maharashtra, 2024). Payback Period = Installation Cost / Annual Savings.',
+                content: 'Annual Savings = Annual Generation × ₹7/unit (average Mumbai grid tariff). Installation Cost = Capacity × ₹60,000/kWp (industry standard for rooftop solar in Maharashtra, 2024). Payback Period = Installation Cost / Annual Savings.',
               },
               {
-                title: 'COâ‚‚ Savings',
+                title: 'CO₂ Savings',
                 color: '#be185d',
-                content: 'COâ‚‚ Saved (tonnes/yr) = Annual Generation Ã&#8212; 0.82 kg/kWh Ã· 1000. The emission factor 0.82 kg COâ‚‚/kWh is the India national grid average published by the Central Electricity Authority (CEA).',
+                content: 'CO₂ Saved (tonnes/yr) = Annual Generation × 0.82 kg/kWh ÷ 1000. The emission factor 0.82 kg CO₂/kWh is the India national grid average published by the Central Electricity Authority (CEA).',
               },
               {
                 title: 'What-If Simulation Impact',
                 color: '#92400e',
-                content: 'When simulated buildings are added, the full shadow analysis runs twice â€” once including the simulated buildings and once without. The "impact" is the difference between these two scores. A negative impact means the simulated building reduces solar potential by casting more shadow on the analysed rooftop.',
+                content: 'When simulated buildings are added, the full shadow analysis runs twice — once including the simulated buildings and once without. The "impact" is the difference between these two scores. A negative impact means the simulated building reduces solar potential by casting more shadow on the analysed rooftop.',
               },
             ].map(sec => (
               <div key={sec.title} style={{ marginBottom: 16 }}>
@@ -1752,7 +1752,7 @@ const SolarSuitabilityTool = ({ view, onClose }) => {
             ))}
 
             <div style={{ marginTop: 8, padding: '10px 12px', background: '#f1f5f9', borderRadius: 8, fontSize: 11, color: '#64748b' }}>
-              <strong>Location reference:</strong> Mumbai (19.076Â&deg;N, 72.877Â&deg;E). Analysis hours: 6 AMâ€“6 PM (13 hourly steps). Neighbour search radius: 200 m. Coordinate system normalised to view spatial reference before all geometry operations.
+              <strong>Location reference:</strong> Mumbai (19.076°N, 72.877°E). Analysis hours: 6 AM–6 PM (13 hourly steps). Neighbour search radius: 200 m. Coordinate system normalised to view spatial reference before all geometry operations.
             </div>
 
             <button
@@ -1806,7 +1806,7 @@ const SolarSuitabilityTool = ({ view, onClose }) => {
           )}
 
           <div className="p-4 space-y-4">
-            {/* Mode tabs â€” only shown before analysis */}
+            {/* Mode tabs — only shown before analysis */}
             {!analysisResult && (
               <div className="flex border border-blue-200 rounded overflow-hidden">
                 <button
@@ -1881,14 +1881,14 @@ const SolarSuitabilityTool = ({ view, onClose }) => {
                   {analysisMode === 'existing' && selectedBuilding ? (
                     <>
                       <div className="flex justify-between"><span className="text-gray-500">Name/ID:</span> <span className="font-medium truncate max-w-[150px]" title={getBuildingInfo(selectedBuilding.attributes).name}>{getBuildingInfo(selectedBuilding.attributes).name}</span></div>
-                      <div className="flex justify-between"><span className="text-gray-500">Floors:</span> <span className="font-medium">{getBuildingInfo(selectedBuilding.attributes).floors || 'â€”'}</span></div>
-                      <div className="flex justify-between"><span className="text-gray-500">Height:</span> <span className="font-medium">{getBuildingInfo(selectedBuilding.attributes).height ? getBuildingInfo(selectedBuilding.attributes).height + ' m' : 'â€”'}</span></div>
+                      <div className="flex justify-between"><span className="text-gray-500">Floors:</span> <span className="font-medium">{getBuildingInfo(selectedBuilding.attributes).floors || '—'}</span></div>
+                      <div className="flex justify-between"><span className="text-gray-500">Height:</span> <span className="font-medium">{getBuildingInfo(selectedBuilding.attributes).height ? getBuildingInfo(selectedBuilding.attributes).height + ' m' : '—'}</span></div>
                     </>
                   ) : (
                     <>
                       <div className="flex justify-between"><span className="text-gray-500">Type:</span> <span className="font-medium">Designed Building</span></div>
-                      <div className="flex justify-between"><span className="text-gray-500">Floors:</span> <span className="font-medium">{designedBuilding?.floors || 'â€”'}</span></div>
-                      <div className="flex justify-between"><span className="text-gray-500">Height:</span> <span className="font-medium">{designedBuilding?.height ? designedBuilding.height.toFixed(1) + ' m' : 'â€”'}</span></div>
+                      <div className="flex justify-between"><span className="text-gray-500">Floors:</span> <span className="font-medium">{designedBuilding?.floors || '—'}</span></div>
+                      <div className="flex justify-between"><span className="text-gray-500">Height:</span> <span className="font-medium">{designedBuilding?.height ? designedBuilding.height.toFixed(1) + ' m' : '—'}</span></div>
                     </>
                   )}
                 </div>
@@ -2181,7 +2181,7 @@ const SolarSuitabilityTool = ({ view, onClose }) => {
                   </div>
                   <div style={{ border: '1px solid #e5e7eb', borderRadius: 8, overflow: 'hidden' }}>
                     {[
-                      ['Sunny Hours (6amâ€“6pm)', `${analysisResult.sunnyHours} / 13 hrs`],
+                      ['Sunny Hours (6am–6pm)', `${analysisResult.sunnyHours} / 13 hrs`],
                       ['Avg Rooftop Sunlit', `${analysisResult.avgSunlit}%`],
                       ['Neighbours Analysed', `${analysisResult.neighbourCount} buildings`],
                     ].map(([label, value], i) => (
@@ -2192,7 +2192,7 @@ const SolarSuitabilityTool = ({ view, onClose }) => {
                     ))}
                   </div>
                   <InfoAccordion title="shadow">
-                    Sun position is computed hourly (6 AMâ€“6 PM, 13 steps) using the solar altitude and azimuth at Mumbai (19.076Â&deg;N, 72.877Â&deg;E). For each hour, neighbouring buildings within 200 m cast shadow polygons proportional to their height above the analysed rooftop. An hour is "sunny" when less than 70% of the rooftop is shadowed.
+                    Sun position is computed hourly (6 AM–6 PM, 13 steps) using the solar altitude and azimuth at Mumbai (19.076°N, 72.877°E). For each hour, neighbouring buildings within 200 m cast shadow polygons proportional to their height above the analysed rooftop. An hour is "sunny" when less than 70% of the rooftop is shadowed.
                   </InfoAccordion>
                 </div>
 
@@ -2202,7 +2202,7 @@ const SolarSuitabilityTool = ({ view, onClose }) => {
                 {/* -- Time Slider (Visual Analysis) ---------------- */}
                 <div style={{ padding: '12px', background: '#1e293b', borderRadius: 10 }}>
                   <div style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', letterSpacing: '0.08em', marginBottom: 8 }}>
-                    SHADOW VISUALISATION â€” TIME OF DAY
+                    SHADOW VISUALISATION — TIME OF DAY
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                     <button
@@ -2231,7 +2231,7 @@ const SolarSuitabilityTool = ({ view, onClose }) => {
                     <span style={{ fontSize: 10, color: '#64748b', marginLeft: 8 }}>Drag to change time &amp; see live shadows on map</span>
                   </div>
 
-                  {/* Daylight widget container â€” hidden behind our slider, used for sun position only */}
+                  {/* Daylight widget container — hidden behind our slider, used for sun position only */}
                   <div
                     ref={widgetContainerRef}
                     style={{ width: '100%', height: 0, overflow: 'hidden', position: 'absolute', pointerEvents: 'none', opacity: 0 }}
@@ -2303,7 +2303,7 @@ const SolarSuitabilityTool = ({ view, onClose }) => {
                     ))}
                   </div>
                   <InfoAccordion title="financial">
-                    Annual Savings = Annual Generation &times; &ldquo;7/unit (Mumbai average grid tariff). Install cost = Capacity &times; &ldquo;60,000/kWp (Maharashtra, 2024). Payback = Install cost &divide; Annual savings. CO&sup2; saved = Annual generation &times; 0.82 kg CO&sup2;/kWh (India CEA grid emission factor).
+                    Annual Savings = Annual Generation &times; &#8377;7/unit (Mumbai average grid tariff). Install cost = Capacity &times; &#8377;60,000/kWp (Maharashtra, 2024). Payback = Install cost &divide; Annual savings. CO&sup2; saved = Annual generation &times; 0.82 kg CO&sup2;/kWh (India CEA grid emission factor).
                   </InfoAccordion>
                 </div>
 
