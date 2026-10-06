@@ -251,7 +251,7 @@ const SmartRecommendations = ({ result }) => {
   return (
     <div style={{ marginTop: 4 }}>
       <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.08em', color: '#1e3a5f', padding: '6px 0 2px', borderBottom: '2px solid #e0e7ff' }}>
-        \uD83E\uDD16 SMART RECOMMENDATIONS
+        {'\uD83E\uDD16'} SMART RECOMMENDATIONS
       </div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 8 }}>
         {recs.map((rec, i) => (
