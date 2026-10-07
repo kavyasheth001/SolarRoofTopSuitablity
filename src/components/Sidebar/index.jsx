@@ -135,8 +135,8 @@ const Sidebar = ({ sidebarOpen, setSidebarOpen }) => {
     borderRadius: '0 2px 2px 0',
   };
 
-  // Secondary color for text and icons
-  const secondaryColor = '#c2a01e';
+  // Secondary color for text and icons — neutral slate grey, not amber
+  const secondaryColor = '#64748b';
 
   return (
     <aside
@@ -187,7 +187,7 @@ const Sidebar = ({ sidebarOpen, setSidebarOpen }) => {
                   onClick={() => {
                     callQuickAccessButtonFunction('realityModel');
                   }}
-                  className={`group relative flex items-center gap-3.5 rounded-lg py-3 px-4 font-medium text-base duration-200 ease-in-out hover:bg-[#FFF8E7] transition-all w-full text-left ${getQuickAccessButtonState('realityModel') ? 'bg-blue-50 text-[#2B5DB1]' : 'text-gray-600'
+                  className={`group relative flex items-center gap-3.5 rounded-lg py-3 px-4 font-medium text-base duration-200 ease-in-out hover:bg-[#eff6ff] transition-all w-full text-left ${getQuickAccessButtonState('realityModel') ? 'bg-blue-50 text-[#2B5DB1]' : 'text-gray-600'
                     }`}
                 >
                   {getQuickAccessButtonState('realityModel') && <span style={activeIndicatorStyle} />}
@@ -200,7 +200,7 @@ const Sidebar = ({ sidebarOpen, setSidebarOpen }) => {
                   onClick={() => {
                     callQuickAccessButtonFunction('lodModel');
                   }}
-                  className={`group relative flex items-center gap-3.5 rounded-lg py-3 px-4 font-medium text-base duration-200 ease-in-out hover:bg-[#FFF8E7] transition-all w-full text-left ${getQuickAccessButtonState('lodModel') ? 'bg-blue-50 text-[#2B5DB1]' : 'text-gray-600'
+                  className={`group relative flex items-center gap-3.5 rounded-lg py-3 px-4 font-medium text-base duration-200 ease-in-out hover:bg-[#eff6ff] transition-all w-full text-left ${getQuickAccessButtonState('lodModel') ? 'bg-blue-50 text-[#2B5DB1]' : 'text-gray-600'
                     }`}
                 >
                   {getQuickAccessButtonState('lodModel') && <span style={activeIndicatorStyle} />}
@@ -213,7 +213,7 @@ const Sidebar = ({ sidebarOpen, setSidebarOpen }) => {
                   onClick={() => {
                     callQuickAccessButtonFunction('shadowAnalysis');
                   }}
-                  className={`group relative flex items-center gap-3.5 rounded-lg py-3 px-4 font-medium text-base duration-200 ease-in-out hover:bg-[#FFF8E7] transition-all w-full text-left ${getQuickAccessButtonState('shadowAnalysis') ? 'bg-blue-50 text-[#2B5DB1]' : 'text-gray-600'
+                  className={`group relative flex items-center gap-3.5 rounded-lg py-3 px-4 font-medium text-base duration-200 ease-in-out hover:bg-[#eff6ff] transition-all w-full text-left ${getQuickAccessButtonState('shadowAnalysis') ? 'bg-blue-50 text-[#2B5DB1]' : 'text-gray-600'
                     }`}
                 >
                   {getQuickAccessButtonState('shadowAnalysis') && <span style={activeIndicatorStyle} />}
@@ -226,7 +226,7 @@ const Sidebar = ({ sidebarOpen, setSidebarOpen }) => {
                   onClick={() => {
                     callQuickAccessButtonFunction('solarSuitability');
                   }}
-                  className={`group relative flex items-center gap-3.5 rounded-lg py-3 px-4 font-medium text-base duration-200 ease-in-out hover:bg-[#FFF8E7] transition-all w-full text-left ${getQuickAccessButtonState('solarSuitability') ? 'bg-blue-50 text-[#2B5DB1]' : 'text-gray-600'
+                  className={`group relative flex items-center gap-3.5 rounded-lg py-3 px-4 font-medium text-base duration-200 ease-in-out hover:bg-[#eff6ff] transition-all w-full text-left ${getQuickAccessButtonState('solarSuitability') ? 'bg-blue-50 text-[#2B5DB1]' : 'text-gray-600'
                     }`}
                 >
                   {getQuickAccessButtonState('solarSuitability') && <span style={activeIndicatorStyle} />}
@@ -239,7 +239,7 @@ const Sidebar = ({ sidebarOpen, setSidebarOpen }) => {
                   onClick={() => {
                     callQuickAccessButtonFunction('identify');
                   }}
-                  className={`group relative flex items-center gap-3.5 rounded-lg py-3 px-4 font-medium text-base duration-200 ease-in-out hover:bg-[#FFF8E7] transition-all w-full text-left ${getQuickAccessButtonState('identify') ? 'bg-blue-50 text-[#2B5DB1]' : 'text-gray-600'
+                  className={`group relative flex items-center gap-3.5 rounded-lg py-3 px-4 font-medium text-base duration-200 ease-in-out hover:bg-[#eff6ff] transition-all w-full text-left ${getQuickAccessButtonState('identify') ? 'bg-blue-50 text-[#2B5DB1]' : 'text-gray-600'
                     }`}
                 >
                   {getQuickAccessButtonState('identify') && <span style={activeIndicatorStyle} />}
@@ -256,7 +256,7 @@ const Sidebar = ({ sidebarOpen, setSidebarOpen }) => {
               <li>
                 <NavLink
                   to="/map"
-                  className={({ isActive }) => `group relative flex items-center gap-3.5 rounded-lg py-3 px-4 font-medium text-base duration-200 ease-in-out hover:bg-[#FFF8E7] transition-all ${isActive ? 'bg-blue-50 text-[#2B5DB1]' : 'text-gray-600'}`}
+                  className={({ isActive }) => `group relative flex items-center gap-3.5 rounded-lg py-3 px-4 font-medium text-base duration-200 ease-in-out hover:bg-[#eff6ff] transition-all ${isActive ? 'bg-blue-50 text-[#2B5DB1]' : 'text-gray-600'}`}
                 >
                   {({ isActive }) => (
                     <>
@@ -269,7 +269,7 @@ const Sidebar = ({ sidebarOpen, setSidebarOpen }) => {
               <li>
                 <NavLink
                   to="/dashboard"
-                  className={({ isActive }) => `group relative flex items-center gap-3.5 rounded-lg py-3 px-4 font-medium text-base duration-200 ease-in-out hover:bg-[#FFF8E7] transition-all ${isActive ? 'bg-blue-50 text-[#2B5DB1]' : 'text-gray-600'}`}
+                  className={({ isActive }) => `group relative flex items-center gap-3.5 rounded-lg py-3 px-4 font-medium text-base duration-200 ease-in-out hover:bg-[#eff6ff] transition-all ${isActive ? 'bg-blue-50 text-[#2B5DB1]' : 'text-gray-600'}`}
                 >
                   {({ isActive }) => (
                     <>
@@ -282,7 +282,7 @@ const Sidebar = ({ sidebarOpen, setSidebarOpen }) => {
               <li>
                 <NavLink
                   to="/map?tool=solar"
-                  className={({ isActive }) => `group relative flex items-center gap-3.5 rounded-lg py-3 px-4 font-medium text-base duration-200 ease-in-out hover:bg-[#FFF8E7] transition-all ${isActive ? 'bg-blue-50 text-[#2B5DB1]' : 'text-gray-600'}`}
+                  className={({ isActive }) => `group relative flex items-center gap-3.5 rounded-lg py-3 px-4 font-medium text-base duration-200 ease-in-out hover:bg-[#eff6ff] transition-all ${isActive ? 'bg-blue-50 text-[#2B5DB1]' : 'text-gray-600'}`}
                 >
                   <FaSolarPanel className="text-lg" style={{ color: secondaryColor }} />
                   Solar Analysis
