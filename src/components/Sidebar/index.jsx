@@ -147,14 +147,6 @@ const Sidebar = ({ sidebarOpen, setSidebarOpen }) => {
       {/* SIDEBAR HEADER */}
       <div className="flex items-center border-b border-gray-100 px-4 py-4 gap-3">
 
-        {/* Logo */}
-        <NavLink to="/map" className="flex-shrink-0">
-          <img
-            src={log || '/placeholder.svg'}
-            alt="Logo"
-            className="w-20 h-20 rounded-full shadow-md transform transition-all duration-300 hover:scale-105"
-          />
-        </NavLink>
 
         {/* User Info — right of logo */}
         

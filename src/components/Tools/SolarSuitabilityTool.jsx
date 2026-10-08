@@ -6,7 +6,8 @@ import SketchViewModel from "@arcgis/core/widgets/Sketch/SketchViewModel.js";
 import SimpleFillSymbol from "@arcgis/core/symbols/SimpleFillSymbol.js";
 import * as geometryEngine from "@arcgis/core/geometry/geometryEngine.js";
 import * as webMercatorUtils from "@arcgis/core/geometry/support/webMercatorUtils.js";
-import SearchLocationTool from './SearchLocationTool';
+import { useMap } from '../../context/MapContext';
+
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, CartesianGrid,
 } from 'recharts';
@@ -290,7 +291,7 @@ const SolarSuitabilityTool = ({ view, onClose, panelWidth = 420 }) => {
   const lodOriginalVisibility = useRef({});
   const clickHandle = useRef(null);
   const highlightHandleRef = useRef(null);
-
+  const { registerQuickAccessButtonState } = useMap();
 
   const [buildingLayer, setBuildingLayer] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
@@ -346,11 +347,13 @@ const SolarSuitabilityTool = ({ view, onClose, panelWidth = 420 }) => {
     if (!view || !view.map) return;
 
     // 1. LOD Layers: enable by title (search top-level AND inside group layers)
+    let lodEnabledCount = 0;
     function findAndEnableLayers(layers) {
       layers.forEach(layer => {
         if (lodTitles.includes(layer.title)) {
           lodOriginalVisibility.current[layer.title] = layer.visible;
           layer.visible = true;
+          lodEnabledCount++;
           console.log(`[Solar] Enabled LOD layer: "${layer.title}"`);
         }
         // Also recurse into group layers
@@ -360,6 +363,11 @@ const SolarSuitabilityTool = ({ view, onClose, panelWidth = 420 }) => {
       });
     }
     findAndEnableLayers(view.map.layers);
+    
+    // Sync sidebar button state if we enabled any LOD layer
+    if (lodEnabledCount > 0 && registerQuickAccessButtonState) {
+      registerQuickAccessButtonState('lodModel', true);
+    }
 
 
     view.environment.lighting.directShadowsEnabled = true;
@@ -416,11 +424,15 @@ const SolarSuitabilityTool = ({ view, onClose, panelWidth = 420 }) => {
         layers.forEach(layer => {
           if (lodOriginalVisibility.current[layer.title] !== undefined) {
             layer.visible = lodOriginalVisibility.current[layer.title];
+            if (!layer.visible && registerQuickAccessButtonState) {
+              registerQuickAccessButtonState('lodModel', false);
+            }
           }
           if (layer.layers) restoreLayers(layer.layers);
         });
       }
       restoreLayers(view.map.layers);
+
 
       // Destroy widget and clear graphics
       if (daylightWidgetRef.current) {
@@ -1771,7 +1783,6 @@ const SolarSuitabilityTool = ({ view, onClose, panelWidth = 420 }) => {
             {/* Select existing building prompt */}
             {analysisMode === 'existing' && !selectedBuilding && !analysisResult && (
               <div className="space-y-3">
-                <SearchLocationTool view={view} isFireWidget={true} />
                 {!isPicking ? (
                   <button
                     onClick={enablePicking}

@@ -39,38 +39,21 @@ const highlightedGraphicRef = useRef(null)
   const inputRef = useRef(null)
   const currentMarkerRef = useRef(null) // Track current marker
 
-  useEffect(() => {
-  
-   setPosition({...position, width: isFireWidget ? "97%" : searchValue !== ""  ? "360px" : "260px"})
-  }, [searchValue]);
-  
-  // --- Positioning (panel container)
-  useEffect(() => {
-    
-    console.log(isFireWidget, "isFireWidget");
-  
-  }, [isFireWidget])
-  
-  
-
-  const [position, setPosition] = useState({
-    
-    position: isFireWidget ? "static" :"absolute",
-    display: isFireWidget ? "flex":"block" ,
-    alignItems : "center",
-    justifyContent : "center",
+  const position = {
+    position: isFireWidget ? "static" : "absolute",
+    display: isFireWidget ? "flex" : "block",
+    alignItems: "center",
+    justifyContent: "center",
     top: WidgetPosition?.top || "6px",
-    ...(WidgetPosition?.right
-    ? { right: WidgetPosition.right }
-    : { left: "55px" }),
-    width:  isFireWidget ? "97%" : searchValue !== ""  ? "360px" : "260px",
+    ...(WidgetPosition?.right ? { right: WidgetPosition.right } : { left: "55px" }),
+    width: isFireWidget ? "97%" : searchValue !== "" ? "360px" : "260px",
     color: "#111827",
     fontFamily: "Inter, system-ui, Arial, sans-serif",
     borderRadius: "12px",
     overflow: "visible",
     zIndex: 9,
-    margin : isFireWidget ?"10px 3px 10px 3px " : "0px",
-  })
+    margin: isFireWidget ? "10px 3px 10px 3px " : "0px",
+  };
 
   
   // --- Utilities

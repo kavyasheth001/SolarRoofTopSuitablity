@@ -2,9 +2,12 @@
 import React from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useMap } from '../../context/MapContext';
+import SearchLocationTool from '../Tools/SearchLocationTool';
 
 
 const Header = ({ sidebarOpen, setSidebarOpen }) => {
+  const { sceneView } = useMap();
+
   return (
     <header className="sticky top-0 z-999 flex w-full bg-[#1e3a5f] shadow-md h-12 items-center">
       <div className="flex flex-grow items-center justify-between px-4 py-2 md:px-6">
@@ -35,6 +38,15 @@ const Header = ({ sidebarOpen, setSidebarOpen }) => {
           </button>
 
            <span className="text-white text-lg font-semibold ml-2">Solar Rooftop Analysis</span>
+        </div>
+
+        {/* Right Side: Search */}
+        <div className="flex items-center gap-3">
+          {sceneView && (
+            <div style={{ width: '320px' }}>
+              <SearchLocationTool view={sceneView} isFireWidget={true} />
+            </div>
+          )}
         </div>
       </div>
     </header>

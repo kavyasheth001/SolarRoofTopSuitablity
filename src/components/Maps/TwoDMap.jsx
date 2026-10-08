@@ -10,7 +10,7 @@ import { FaGlobe } from 'react-icons/fa';
 import './TwoDMap.css';
 
 const TwoDMap = ({ isSidebarCollapsed }) => {
-  const { registerQuickAccessButtonFunction, registerQuickAccessButtonState } = useMap();
+  const { registerQuickAccessButtonFunction, registerQuickAccessButtonState, setSceneView } = useMap();
   const mapContainer3DRef = useRef(null);
   const [view, setView] = useState(null);
 
@@ -39,6 +39,7 @@ const TwoDMap = ({ isSidebarCollapsed }) => {
         const v = mapManager.getView();
         if (v) {
           setView(v);
+          setSceneView(v);
           v.goTo({
             center: [72.847187, 18.999758],
             zoom: 12.3,

@@ -1,4 +1,4 @@
-# SolarSight — AI-Powered Rooftop Solar Suitability Analysis
+  # SolarSight — AI-Powered Rooftop Solar Suitability Analysis
 
 **Part of the TrueGeoMap / Antigravity MCGM 3D GIS Platform**
 Developed for the Brihanmumbai Municipal Corporation (BMC/MCGM)
