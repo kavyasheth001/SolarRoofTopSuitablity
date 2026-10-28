@@ -1,0 +1,60 @@
+{
+  "area": {
+    "name": "F/S ward",
+    "boundaryUrl": "https://bmc3dmumbai.com/server/rest/services/Hosted/Ward_Boundary_New/FeatureServer/0",
+    "where": "name = 'F/S'"
+  },
+  "layers": [
+    { "name": "ward_boundary", "pilot": true, "usedBy": "Ward atlas, clipping", "url": "https://bmc3dmumbai.com/server/rest/services/Hosted/Ward_Boundary_New/FeatureServer/0" },
+    { "name": "prabhaag_boundary", "usedBy": "Councillor-wise report cards", "url": "https://prsrvgisapp.mcgm.gov.in/server/rest/services/mcgm/MCGMGIS_Departments_Master_All_Layers_WGS/MapServer/222" },
+    { "name": "locality", "usedBy": "Atlas aggregation (Parel, Lalbaug, Sewri…)", "url": "https://bmc3dmumbai.com/server/rest/services/Hosted/BMC_Updated_Basemap_WFL1/FeatureServer/47" },
+
+    { "name": "building_new", "pilot": true, "usedBy": "Solar tool, atlas, 3D buildings", "url": "https://bmc3dmumbai.com/server/rest/services/Hosted/Building_new_WFL1/FeatureServer/0" },
+    { "name": "building_change_2018_2024", "usedBy": "Redevelopment shadow audit", "url": "https://bmc3dmumbai.com/server/rest/services/Hosted/Building2_WFL1/FeatureServer/0" },
+    { "name": "property_tax_units", "usedBy": "Tariff category for savings (res/com/ind units)", "url": "https://bmc3dmumbai.com/server/rest/services/Hosted/Additional_Layer_WFL1/FeatureServer/33",
+      "outFields": "sac_number,name,ward_name,class,sub_class,no_floors,height,area_sqmtr,totalunit,resunit,comunit,indunit,landunit,financial_year",
+      "note": "PII layer: only non-personal fields are exported (no billing names, phones, e-mails)" },
+
+    { "name": "solar_panel_polygon", "usedBy": "Already-solar badge, adoption gap", "url": "https://bmc3dmumbai.com/server/rest/services/Hosted/Updated_20260302_WFL1/FeatureServer/15" },
+    { "name": "solar_panel_point", "usedBy": "Already-solar lookup by building", "url": "https://bmc3dmumbai.com/server/rest/services/Hosted/Updated_20260302_WSL1/FeatureServer/1" },
+
+    { "name": "bmc_buildings", "usedBy": "BMC public rooftop programme", "url": "https://bmc3dmumbai.com/server/rest/services/Hosted/BMC_Asset_WFL1/FeatureServer/12" },
+    { "name": "bmc_school_bldg", "usedBy": "BMC public rooftop programme", "url": "https://bmc3dmumbai.com/server/rest/services/Hosted/BMC_Assets_V2_WFL1/FeatureServer/10" },
+    { "name": "bmc_hospital_bldg", "usedBy": "BMC public rooftop programme", "url": "https://bmc3dmumbai.com/server/rest/services/Hosted/BMC_Assets_V2_WFL1/FeatureServer/22" },
+    { "name": "bmc_office_bldg", "usedBy": "BMC public rooftop programme", "url": "https://bmc3dmumbai.com/server/rest/services/Hosted/BMC_Assets_V2_WFL1/FeatureServer/16" },
+    { "name": "bmc_market_bldg", "usedBy": "BMC public rooftop programme", "url": "https://bmc3dmumbai.com/server/rest/services/Hosted/BMC_Assets_V2_WFL1/FeatureServer/15" },
+    { "name": "bmc_pumping_station_bldg", "usedBy": "BMC public rooftop programme", "url": "https://bmc3dmumbai.com/server/rest/services/Hosted/BMC_Assets_V2_WFL1/FeatureServer/11" },
+    { "name": "bmc_public_toilet_bldg", "usedBy": "BMC public rooftop programme", "url": "https://bmc3dmumbai.com/server/rest/services/Hosted/BMC_Assets_V2_WFL1/FeatureServer/12" },
+    { "name": "bmc_fire_station_bldg", "usedBy": "BMC public rooftop programme", "url": "https://bmc3dmumbai.com/server/rest/services/Hosted/BMC_Assets_V2_WFL1/FeatureServer/29" },
+
+    { "name": "community_toilet", "usedBy": "Social layer: toilets without electricity", "url": "https://bmc3dmumbai.com/server/rest/services/Hosted/BMC_Updated_Basemap_WSL24/FeatureServer/59" },
+    { "name": "temporary_shelters", "usedBy": "Monsoon resilience: solar + battery", "url": "https://prsrvgisapp.mcgm.gov.in/server/rest/services/mcgm/MCGMGIS_Departments_Master_All_Layers_WGS/MapServer/232" },
+    { "name": "hospitals", "usedBy": "Monsoon resilience: solar + battery", "url": "https://prsrvgisapp.mcgm.gov.in/server/rest/services/mcgm/MCGMGIS_Departments_Master_All_Layers_WGS/MapServer/214" },
+    { "name": "flooding_spots", "usedBy": "Monsoon resilience context", "url": "https://prsrvgisapp.mcgm.gov.in/server/rest/services/mcgm/MCGMGIS_Departments_Master_All_Layers_WGS/MapServer/344" },
+
+    { "name": "heritage", "usedBy": "Constraint flag: MHCC NOC", "url": "https://bmc3dmumbai.com/server/rest/services/Hosted/Additional_Layer_WFL1/FeatureServer/21" },
+    { "name": "glass_facade_building", "usedBy": "Constraint flag: glare", "url": "https://bmc3dmumbai.com/server/rest/services/Hosted/Road_Junction_WFL1/FeatureServer/2" },
+    { "name": "coastal_2km", "usedBy": "Constraint flag: corrosion / wind design", "url": "https://bmc3dmumbai.com/server/rest/services/Hosted/Landslide_WFL1/FeatureServer/1" },
+    { "name": "power_points", "usedBy": "Distance to transformer, solar street lights", "url": "https://bmc3dmumbai.com/server/rest/services/Hosted/Updated_20260415_V2_WFL1/FeatureServer/3" },
+
+    { "name": "tree", "usedBy": "Vegetation shading on roofs", "url": "https://bmc3dmumbai.com/server/rest/services/Hosted/BMC_Updated_Basemap_WSL3/FeatureServer/3" },
+    { "name": "tree_clad_area", "usedBy": "Vegetation (canopy) shading", "url": "https://bmc3dmumbai.com/server/rest/services/Hosted/Tree_WFL1/FeatureServer/1" }
+  ],
+  "excluded": [
+    { "name": "census_ward", "reason": "Population already on each building", "url": "https://bmc3dmumbai.com/server/rest/services/Hosted/BMC_Updated_Basemap_WFL1/FeatureServer/49" },
+    { "name": "sub_locality", "reason": "Locality + prabhaag are enough aggregation levels", "url": "https://bmc3dmumbai.com/server/rest/services/Hosted/BMC_Updated_Basemap_WFL1/FeatureServer/46" },
+    { "name": "power_lines", "reason": "Transformer distance uses points only", "url": "https://bmc3dmumbai.com/server/rest/services/Hosted/BMC_Updated_Basemap_WFL1/FeatureServer/26" },
+    { "name": "ev_charging", "reason": "EV/carport feature is Phase 2 (1 feature in F/S)", "url": "https://bmc3dmumbai.com/server/rest/services/Hosted/Additional_Layer_WSL4/FeatureServer/4" },
+    { "name": "lulc", "reason": "Vacant-land / ground-mount is not in Phase 1", "url": "https://bmc3dmumbai.com/server/rest/services/Hosted/Updated_20260302_WFL1/FeatureServer/18" },
+    { "name": "garden", "reason": "Basemap context only", "url": "https://bmc3dmumbai.com/server/rest/services/Hosted/Garden_WFL1/FeatureServer/0" },
+    { "name": "road_polygon", "reason": "Basemap provides roads", "url": "https://bmc3dmumbai.com/server/rest/services/Hosted/Updated_20260302_WFL1/FeatureServer/16" },
+    { "name": "road_line", "reason": "Basemap provides roads", "url": "https://bmc3dmumbai.com/server/rest/services/Hosted/Updated_20260302_WFL1/FeatureServer/10" },
+    { "name": "rail_polygon", "reason": "Basemap provides rail", "url": "https://bmc3dmumbai.com/server/rest/services/Hosted/updated_20260317_WFL1/FeatureServer/3" },
+    { "name": "water_bodies", "reason": "Basemap provides water; floating solar not planned for F/S", "url": "https://bmc3dmumbai.com/server/rest/services/Hosted/Updated_20260302_WFL1/FeatureServer/19" },
+    { "name": "bus_stop", "reason": "Solar shelters are Phase 3", "url": "https://bmc3dmumbai.com/server/rest/services/Hosted/Updated_Layer_WSL1/FeatureServer/0" },
+    { "name": "parking_lots", "reason": "Solar carports are Phase 3", "url": "https://prsrvgisapp.mcgm.gov.in/server/rest/services/mcgm/MCGMGIS_Departments_Master_All_Layers_WGS/MapServer/329" },
+    { "name": "dp_reservation", "reason": "Not used by any planned feature", "url": "https://bmc3dmumbai.com/server/rest/services/Hosted/Additional_Layer_WFL1/FeatureServer/17" },
+    { "name": "slum_boundary_2024", "reason": "Community-solar targeting is Phase 3", "url": "https://bmc3dmumbai.com/server/rest/services/Hosted/Additional_Layer_WFL1/FeatureServer/28" },
+    { "name": "pano_frames", "reason": "Street photos are Phase 2; images still hosted on ArcGIS (67 MB, 54,886 frames)", "url": "https://bmc3dmumbai.com/server/rest/services/Hosted/Pano_WFL1/FeatureServer/0" }
+  ]
+}

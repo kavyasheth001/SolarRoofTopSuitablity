@@ -1,0 +1,317 @@
+// GeoServer map (separate page, independent of the ArcGIS app): F/S ward data served by our own GeoServer and drawn without
+// the ArcGIS SDK. Left: OpenLayers (2D, GeoServer WMS). Right: CesiumJS (3D, buildings extruded from
+// GeoServer WFS, real sun position and shadows). No Cesium ion services are used.
+import { useEffect, useRef, useState } from 'react';
+import * as Cesium from 'cesium';
+import 'cesium/Build/Cesium/Widgets/widgets.css';
+import OlMap from 'ol/Map';
+import OlView from 'ol/View';
+import TileLayer from 'ol/layer/Tile';
+import OSM from 'ol/source/OSM';
+import TileWMS from 'ol/source/TileWMS';
+import { fromLonLat, toLonLat } from 'ol/proj';
+import 'ol/ol.css';
+import registry from './layers/registry.json';
+
+window.CESIUM_BASE_URL = `${import.meta.env.BASE_URL.replace(/\/$/, '')}/cesium/`;
+
+const GEOSERVER = import.meta.env.VITE_GEOSERVER_URL || 'http://localhost:8600/geoserver';
+const FS_CENTER = [72.8506, 18.9975];
+const IST_OFFSET_H = 5.5;
+
+const SEASONS = {
+  today: null,
+  summer: [5, 21],
+  equinox: [2, 21],
+  winter: [11, 21],
+};
+
+// Registry order is draw order (bottom → top), so the WMS LAYERS list keeps it.
+const wmsList = (visible, skip = []) =>
+  registry.layers.filter((l) => visible.has(l.id) && !skip.includes(l.id)).map((l) => `${registry.workspace}:${l.id}`).join(',');
+
+const swatch = (l) => l.fill || l.point || l.rules?.[0]?.fill || l.stroke;
+
+function heightColor(h) {
+  if (h >= 100) return Cesium.Color.fromCssColorString('#b45309');
+  if (h >= 45) return Cesium.Color.fromCssColorString('#f59e0b');
+  if (h >= 15) return Cesium.Color.fromCssColorString('#cbd5e1');
+  return Cesium.Color.fromCssColorString('#f1f5f9');
+}
+
+function istToJulian(season, hour) {
+  const now = new Date();
+  const [m, d] = SEASONS[season] || [now.getMonth(), now.getDate()];
+  const minutes = Math.round((hour - IST_OFFSET_H) * 60);
+  return Cesium.JulianDate.fromDate(new Date(Date.UTC(now.getFullYear(), m, d, 0, minutes)));
+}
+
+async function fetchBuildings() {
+  const params = new URLSearchParams({
+    service: 'WFS', version: '2.0.0', request: 'GetFeature', typeNames: 'bmc:building_new',
+    outputFormat: 'application/json', srsName: 'EPSG:4326',
+    propertyName: 'geom,name,class,sub_class,no_floors,height,area_sqmtr,bld_id,address',
+  });
+  const res = await fetch(`${GEOSERVER}/bmc/ows?${params}`);
+  if (!res.ok) throw new Error(`WFS ${res.status}`);
+  return res.json();
+}
+
+function buildPrimitive(features) {
+  const instances = [];
+  features.forEach((f, i) => {
+    const h = Math.max(Number(f.properties.height) || 3, 3);
+    const polys = f.geometry.type === 'MultiPolygon' ? f.geometry.coordinates : [f.geometry.coordinates];
+    polys.forEach((rings, j) => {
+      const outer = Cesium.Cartesian3.fromDegreesArray(rings[0].flat());
+      const holes = rings.slice(1).map((r) => new Cesium.PolygonHierarchy(Cesium.Cartesian3.fromDegreesArray(r.flat())));
+      instances.push(new Cesium.GeometryInstance({
+        id: { index: i, part: j },
+        geometry: new Cesium.PolygonGeometry({
+          polygonHierarchy: new Cesium.PolygonHierarchy(outer, holes),
+          height: 0,
+          extrudedHeight: h,
+          vertexFormat: Cesium.PerInstanceColorAppearance.VERTEX_FORMAT,
+        }),
+        attributes: { color: Cesium.ColorGeometryInstanceAttribute.fromColor(heightColor(h)) },
+      }));
+    });
+  });
+  return new Cesium.Primitive({
+    geometryInstances: instances,
+    appearance: new Cesium.PerInstanceColorAppearance({ translucent: false, closed: true, flat: false }),
+    shadows: Cesium.ShadowMode.ENABLED,
+    releaseGeometryInstances: false,
+    asynchronous: true,
+  });
+}
+
+export default function GeoServerMap() {
+  const olRef = useRef(null);
+  const csRef = useRef(null);
+  const viewerRef = useRef(null);
+  const featuresRef = useRef([]);
+  const primitiveRef = useRef(null);
+  const selectedRef = useRef(null);
+  const [status, setStatus] = useState('Loading buildings from GeoServer…');
+  const [count, setCount] = useState(0);
+  const [hour, setHour] = useState(9);
+  const [season, setSeason] = useState('today');
+  const [shadows, setShadows] = useState(true);
+  const [picked, setPicked] = useState(null);
+  const [visible, setVisible] = useState(() => new Set(registry.layers.filter((l) => l.visible).map((l) => l.id)));
+  const [counts, setCounts] = useState({});
+  const [panelOpen, setPanelOpen] = useState(true);
+  const olWmsRef = useRef(null);
+  const csOverlayRef = useRef(null);
+
+  const toggleLayer = (id) => setVisible((prev) => {
+    const next = new Set(prev);
+    if (next.has(id)) next.delete(id); else next.add(id);
+    return next;
+  });
+
+  // Feature count per published layer, straight from GeoServer WFS (proves each layer is served).
+  useEffect(() => {
+    registry.layers.forEach(async (l) => {
+      try {
+        const res = await fetch(`${GEOSERVER}/${registry.workspace}/ows?service=WFS&version=2.0.0&request=GetFeature&typeNames=${registry.workspace}:${l.id}&resultType=hits`);
+        const n = Number((await res.text()).match(/numberMatched="(\d+)"/)?.[1]);
+        setCounts((c) => ({ ...c, [l.id]: Number.isFinite(n) ? n : 'error' }));
+      } catch {
+        setCounts((c) => ({ ...c, [l.id]: 'error' }));
+      }
+    });
+  }, []);
+
+  // 3D: CesiumJS
+  useEffect(() => {
+    const viewer = new Cesium.Viewer(csRef.current, {
+      baseLayer: new Cesium.ImageryLayer(new Cesium.OpenStreetMapImageryProvider({ url: 'https://tile.openstreetmap.org/' })),
+      terrainProvider: new Cesium.EllipsoidTerrainProvider(),
+      baseLayerPicker: false, geocoder: false, homeButton: false, sceneModePicker: false,
+      navigationHelpButton: false, animation: false, timeline: false, fullscreenButton: false,
+      infoBox: false, selectionIndicator: false, shadows: true,
+    });
+    viewerRef.current = viewer;
+    viewer.scene.globe.enableLighting = true;
+    // Higher-resolution, shorter-range shadow map removes the striping ("shadow acne") on walls.
+    viewer.scene.shadowMap.size = 4096;
+    viewer.scene.shadowMap.softShadows = false;
+    viewer.scene.shadowMap.normalOffset = true;
+    viewer.scene.shadowMap.darkness = 0.35;
+    viewer.scene.shadowMap.maximumDistance = 1500;
+    viewer.clock.shouldAnimate = false;
+    viewer.camera.setView({
+      destination: Cesium.Cartesian3.fromDegrees(72.8318, 18.9745, 1400),
+      orientation: { heading: Cesium.Math.toRadians(20), pitch: Cesium.Math.toRadians(-32), roll: 0 },
+    });
+
+    let cancelled = false;
+    const t0 = performance.now();
+    fetchBuildings()
+      .then((fc) => {
+        if (cancelled) return;
+        featuresRef.current = fc.features;
+        setCount(fc.features.length);
+        const prim = buildPrimitive(fc.features);
+        primitiveRef.current = prim;
+        viewer.scene.primitives.add(prim);
+        return prim.readyPromise ?? new Promise((resolve) => {
+          const remove = viewer.scene.postRender.addEventListener(() => { if (prim.ready) { remove(); resolve(); } });
+        });
+      })
+      .then(() => !cancelled && setStatus(`Loaded from GeoServer WFS in ${((performance.now() - t0) / 1000).toFixed(1)} s`))
+      .catch((err) => !cancelled && setStatus(`Failed: ${err.message} (is GeoServer running on ${GEOSERVER}?)`));
+
+    const handler = new Cesium.ScreenSpaceEventHandler(viewer.scene.canvas);
+    handler.setInputAction((e) => {
+      const hit = viewer.scene.pick(e.position);
+      const prim = primitiveRef.current;
+      if (selectedRef.current && prim) {
+        const { id, color } = selectedRef.current;
+        prim.getGeometryInstanceAttributes(id).color = Cesium.ColorGeometryInstanceAttribute.toValue(color);
+        selectedRef.current = null;
+      }
+      if (!hit || hit.primitive !== prim || !hit.id) { setPicked(null); return; }
+      const props = featuresRef.current[hit.id.index].properties;
+      const attrs = prim.getGeometryInstanceAttributes(hit.id);
+      selectedRef.current = { id: hit.id, color: heightColor(Math.max(Number(props.height) || 3, 3)) };
+      attrs.color = Cesium.ColorGeometryInstanceAttribute.toValue(Cesium.Color.CYAN);
+      setPicked(props);
+    }, Cesium.ScreenSpaceEventType.LEFT_CLICK);
+
+    return () => { cancelled = true; handler.destroy(); viewer.destroy(); };
+  }, []);
+
+  // 2D: OpenLayers, GeoServer WMS over OSM. Clicking flies the 3D camera there.
+  useEffect(() => {
+    const wms = new TileLayer({
+      source: new TileWMS({
+        url: `${GEOSERVER}/${registry.workspace}/wms`,
+        params: { LAYERS: wmsList(visible), TILED: true, TRANSPARENT: true },
+        serverType: 'geoserver',
+        crossOrigin: 'anonymous',
+      }),
+      opacity: 0.9,
+    });
+    olWmsRef.current = wms;
+    const map = new OlMap({
+      target: olRef.current,
+      layers: [new TileLayer({ source: new OSM() }), wms],
+      view: new OlView({ center: fromLonLat(FS_CENTER), zoom: 14 }),
+    });
+    map.on('singleclick', (e) => {
+      const [lon, lat] = toLonLat(e.coordinate);
+      viewerRef.current?.camera.flyTo({
+        destination: Cesium.Cartesian3.fromDegrees(lon, lat - 0.006, 700),
+        orientation: { heading: 0, pitch: Cesium.Math.toRadians(-35), roll: 0 },
+        duration: 1.5,
+      });
+    });
+    return () => map.setTarget(undefined);
+  }, []);
+
+  // Layer toggles drive both maps: 2D WMS, and a WMS overlay draped on the 3D ground
+  // (buildings are skipped in 3D because they are already drawn as extruded blocks).
+  useEffect(() => {
+    const list = wmsList(visible);
+    olWmsRef.current?.setVisible(Boolean(list));
+    if (list) olWmsRef.current?.getSource().updateParams({ LAYERS: list });
+
+    const viewer = viewerRef.current;
+    if (!viewer || viewer.isDestroyed()) return;
+    if (csOverlayRef.current) viewer.imageryLayers.remove(csOverlayRef.current, true);
+    csOverlayRef.current = null;
+    const draped = wmsList(visible, ['building_new']);
+    if (draped) {
+      csOverlayRef.current = viewer.imageryLayers.addImageryProvider(new Cesium.WebMapServiceImageryProvider({
+        url: `${GEOSERVER}/${registry.workspace}/wms`,
+        layers: draped,
+        parameters: { transparent: true, format: 'image/png' },
+      }));
+    }
+  }, [visible]);
+
+  // Sun position: hour + season drive the Cesium clock (IST).
+  useEffect(() => {
+    const viewer = viewerRef.current;
+    if (!viewer) return;
+    viewer.clock.currentTime = istToJulian(season, hour);
+    viewer.shadows = shadows;
+    viewer.scene.requestRender();
+  }, [hour, season, shadows]);
+
+  const hh = Math.floor(hour);
+  const mm = String(Math.round((hour % 1) * 60)).padStart(2, '0');
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, display: 'flex', flexDirection: 'column', background: '#0f172a', fontFamily: 'Inter, Segoe UI, sans-serif' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 16, padding: '8px 14px', background: '#1e3a5f', color: '#fff', fontSize: 13, flexWrap: 'wrap' }}>
+        <strong style={{ fontSize: 15 }}>SolarSight · GeoServer Map · F/S ward</strong>
+        <span style={{ opacity: 0.8 }}>PostGIS → GeoServer 3.0.2 → OpenLayers + CesiumJS (no ArcGIS SDK)</span>
+        <span style={{ marginLeft: 'auto', opacity: 0.9 }}>{count.toLocaleString('en-IN')} buildings · {status}</span>
+      </div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '6px 14px', background: '#f8fafc', fontSize: 12, color: '#0f172a', flexWrap: 'wrap' }}>
+        <label>Day&nbsp;
+          <select value={season} onChange={(e) => setSeason(e.target.value)}>
+            <option value="today">Today</option>
+            <option value="summer">Summer solstice (21 Jun)</option>
+            <option value="equinox">Equinox (21 Mar)</option>
+            <option value="winter">Winter solstice (21 Dec)</option>
+          </select>
+        </label>
+        <label style={{ display: 'flex', alignItems: 'center', gap: 6 }}>Time (IST) 6:00
+          <input type="range" min={6} max={18.5} step={0.25} value={hour} onChange={(e) => setHour(Number(e.target.value))} style={{ width: 220 }} />
+          18:30 <strong style={{ minWidth: 44 }}>{hh}:{mm}</strong>
+        </label>
+        <label><input type="checkbox" checked={shadows} onChange={(e) => setShadows(e.target.checked)} /> Shadows</label>
+        <span style={{ color: '#64748b' }}>Click a building in 3D for its attributes · click the 2D map to fly there</span>
+      </div>
+      <div style={{ flex: 1, display: 'flex', minHeight: 0 }}>
+        <div style={{ position: 'relative', width: '38%', height: '100%', borderRight: '2px solid #1e3a5f' }}>
+          <div ref={olRef} style={{ position: 'absolute', inset: 0 }} />
+          <div style={{ position: 'absolute', top: 8, right: 8, width: panelOpen ? 250 : 'auto', maxHeight: 'calc(100% - 16px)', overflowY: 'auto', background: 'rgba(255,255,255,0.97)', borderRadius: 8, boxShadow: '0 4px 16px rgba(0,0,0,0.2)', fontSize: 12, color: '#0f172a' }}>
+            <button onClick={() => setPanelOpen((o) => !o)} style={{ width: '100%', display: 'flex', justifyContent: 'space-between', padding: '7px 10px', background: '#1e3a5f', color: '#fff', border: 'none', borderRadius: panelOpen ? '8px 8px 0 0' : 8, cursor: 'pointer', fontWeight: 600 }}>
+              <span>Layers · {registry.area}</span><span>{panelOpen ? '▾' : '▸'}</span>
+            </button>
+            {panelOpen && registry.groups.map((g) => (
+              <div key={g} style={{ padding: '4px 10px 6px' }}>
+                <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.06em', color: '#64748b', textTransform: 'uppercase', margin: '4px 0 2px' }}>{g}</div>
+                {registry.layers.filter((l) => l.group === g).map((l) => (
+                  <label key={l.id} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '2px 0', cursor: 'pointer' }}>
+                    <input type="checkbox" autoComplete="off" checked={visible.has(l.id)} onChange={() => toggleLayer(l.id)} />
+                    <span style={{ width: 10, height: 10, borderRadius: l.point ? '50%' : 2, background: swatch(l), border: `1px solid ${l.stroke || l.rules?.[0]?.stroke || '#fff'}`, flexShrink: 0 }} />
+                    <span style={{ flex: 1 }}>{l.title}</span>
+                    <span style={{ color: counts[l.id] === 'error' ? '#dc2626' : '#94a3b8', fontVariantNumeric: 'tabular-nums' }}>
+                      {counts[l.id] == null ? '…' : counts[l.id] === 'error' ? 'error' : counts[l.id].toLocaleString('en-IN')}
+                    </span>
+                  </label>
+                ))}
+              </div>
+            ))}
+          </div>
+        </div>
+        <div style={{ position: 'relative', flex: 1 }}>
+          <div ref={csRef} style={{ position: 'absolute', inset: 0 }} />
+          {picked && (
+            <div style={{ position: 'absolute', top: 12, right: 12, width: 280, background: 'rgba(255,255,255,0.96)', borderRadius: 8, padding: '10px 12px', fontSize: 12, color: '#0f172a', boxShadow: '0 6px 20px rgba(0,0,0,0.25)' }}>
+              <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 6 }}>{picked.name?.trim() || `Building #${picked.bld_id}`}</div>
+              {[
+                ['Class', `${picked.class || '—'} / ${picked.sub_class || '—'}`],
+                ['Floors', picked.no_floors || '—'],
+                ['Height', picked.height ? `${Number(picked.height).toFixed(1)} m` : '—'],
+                ['Footprint', picked.area_sqmtr ? `${Math.round(picked.area_sqmtr).toLocaleString('en-IN')} m²` : '—'],
+                ['Building ID', picked.bld_id || '—'],
+              ].map(([k, v]) => (
+                <div key={k} style={{ display: 'flex', justifyContent: 'space-between', padding: '3px 0', borderTop: '1px solid #e2e8f0' }}>
+                  <span style={{ color: '#64748b' }}>{k}</span><span style={{ fontWeight: 600, textAlign: 'right' }}>{v}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}

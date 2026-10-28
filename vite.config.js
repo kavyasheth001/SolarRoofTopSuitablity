@@ -1,5 +1,6 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
+import { fileURLToPath } from 'node:url'
 
 // https://vitejs.dev/config/
 export default defineConfig({
@@ -19,6 +20,11 @@ export default defineConfig({
     target: 'esnext',          // enables native ESM & top-level await → better tree-shaking
     chunkSizeWarningLimit: 15000,
     rollupOptions: {
+      // Two independent pages: the existing ArcGIS app and the standalone GeoServer map.
+      input: {
+        main: fileURLToPath(new URL('./index.html', import.meta.url)),
+        geoserverMap: fileURLToPath(new URL('./geoserver-map.html', import.meta.url)),
+      },
       output: {
         // Split the bundle so browsers can cache each piece independently
         manualChunks(id) {

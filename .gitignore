@@ -34,3 +34,8 @@ dist-ssr
 
 # Vite timestamp files
 vite.config.js.timestamp-*
+
+# Local open-source GIS stack (data + local credentials)
+infra/data/
+infra/.env
+public/cesium/

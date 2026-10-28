@@ -1,0 +1,268 @@
+{
+  "workspace": "bmc",
+  "area": "F/S ward",
+  "groups": [
+    "Boundaries",
+    "Buildings",
+    "Solar",
+    "BMC assets",
+    "Social & resilience",
+    "Constraints & grid",
+    "Vegetation"
+  ],
+  "layers": [
+    {
+      "id": "coastal_2km",
+      "group": "Constraints & grid",
+      "title": "Coastal 2 km zone",
+      "stroke": "#0284c7",
+      "width": 1,
+      "fill": "#bae6fd",
+      "opacity": 0.25,
+      "visible": false
+    },
+    {
+      "id": "tree_clad_area",
+      "group": "Vegetation",
+      "title": "Tree canopy",
+      "stroke": "#15803d",
+      "width": 0.5,
+      "fill": "#86efac",
+      "opacity": 0.6,
+      "visible": false
+    },
+    {
+      "id": "flooding_spots",
+      "group": "Social & resilience",
+      "title": "Flooding spots",
+      "stroke": "#0369a1",
+      "width": 1,
+      "fill": "#7dd3fc",
+      "opacity": 0.7,
+      "visible": false
+    },
+    {
+      "id": "building_new",
+      "group": "Buildings",
+      "title": "Buildings (2024)",
+      "stroke": "#475569",
+      "width": 0.4,
+      "fill": "#cbd5e1",
+      "visible": true
+    },
+    {
+      "id": "property_tax_units",
+      "group": "Buildings",
+      "title": "Property tax units",
+      "stroke": "#a16207",
+      "width": 0.4,
+      "fill": "#fde68a",
+      "opacity": 0.6,
+      "visible": false
+    },
+    {
+      "id": "building_change_2018_2024",
+      "group": "Buildings",
+      "title": "Building change 2018→24",
+      "field": "difference_status",
+      "rules": [
+        {
+          "value": "Developed",
+          "title": "Developed (taller/new)",
+          "stroke": "#b91c1c",
+          "width": 0.8,
+          "fill": "#ef4444",
+          "opacity": 0.75
+        },
+        {
+          "value": "Demolished",
+          "title": "Demolished",
+          "stroke": "#475569",
+          "width": 0.8,
+          "fill": "#94a3b8",
+          "opacity": 0.5,
+          "dash": "3 2"
+        }
+      ],
+      "visible": false
+    },
+    {
+      "id": "bmc_buildings",
+      "group": "BMC assets",
+      "title": "BMC buildings",
+      "stroke": "#1d4ed8",
+      "width": 1,
+      "fill": "#93c5fd",
+      "visible": false
+    },
+    {
+      "id": "bmc_school_bldg",
+      "group": "BMC assets",
+      "title": "BMC schools",
+      "stroke": "#1d4ed8",
+      "width": 1.5,
+      "fill": "#60a5fa",
+      "visible": false
+    },
+    {
+      "id": "bmc_hospital_bldg",
+      "group": "BMC assets",
+      "title": "BMC hospitals",
+      "stroke": "#be123c",
+      "width": 1.5,
+      "fill": "#fda4af",
+      "visible": false
+    },
+    {
+      "id": "bmc_office_bldg",
+      "group": "BMC assets",
+      "title": "BMC offices",
+      "stroke": "#1d4ed8",
+      "width": 1.5,
+      "fill": "#bfdbfe",
+      "visible": false
+    },
+    {
+      "id": "bmc_market_bldg",
+      "group": "BMC assets",
+      "title": "BMC markets",
+      "stroke": "#1d4ed8",
+      "width": 1.5,
+      "fill": "#bfdbfe",
+      "visible": false
+    },
+    {
+      "id": "bmc_pumping_station_bldg",
+      "group": "BMC assets",
+      "title": "BMC pumping stations",
+      "stroke": "#1d4ed8",
+      "width": 1.5,
+      "fill": "#bfdbfe",
+      "visible": false
+    },
+    {
+      "id": "bmc_public_toilet_bldg",
+      "group": "BMC assets",
+      "title": "BMC public toilets",
+      "stroke": "#1d4ed8",
+      "width": 1.5,
+      "fill": "#bfdbfe",
+      "visible": false
+    },
+    {
+      "id": "bmc_fire_station_bldg",
+      "group": "BMC assets",
+      "title": "BMC fire stations",
+      "stroke": "#b91c1c",
+      "width": 1.5,
+      "fill": "#fecaca",
+      "visible": false
+    },
+    {
+      "id": "heritage",
+      "group": "Constraints & grid",
+      "title": "Heritage",
+      "stroke": "#92400e",
+      "width": 1.5,
+      "fill": "#d97706",
+      "opacity": 0.6,
+      "visible": true
+    },
+    {
+      "id": "glass_facade_building",
+      "group": "Constraints & grid",
+      "title": "Glass facade",
+      "stroke": "#0e7490",
+      "width": 1.5,
+      "fill": "#67e8f9",
+      "opacity": 0.7,
+      "visible": false
+    },
+    {
+      "id": "solar_panel_polygon",
+      "group": "Solar",
+      "title": "Existing solar panels",
+      "stroke": "#15803d",
+      "width": 1,
+      "fill": "#22c55e",
+      "visible": true
+    },
+    {
+      "id": "locality",
+      "group": "Boundaries",
+      "title": "Locality",
+      "stroke": "#0891b2",
+      "width": 1.5,
+      "fill": null,
+      "dash": "2 3",
+      "visible": false
+    },
+    {
+      "id": "prabhaag_boundary",
+      "group": "Boundaries",
+      "title": "Prabhaag (councillor)",
+      "stroke": "#7c3aed",
+      "width": 1.5,
+      "fill": null,
+      "dash": "6 4",
+      "visible": false
+    },
+    {
+      "id": "ward_boundary",
+      "group": "Boundaries",
+      "title": "Ward boundary",
+      "stroke": "#1e3a5f",
+      "width": 3,
+      "fill": null,
+      "visible": true
+    },
+    {
+      "id": "tree",
+      "group": "Vegetation",
+      "title": "Trees",
+      "point": "#166534",
+      "size": 3,
+      "visible": false
+    },
+    {
+      "id": "power_points",
+      "group": "Constraints & grid",
+      "title": "Power network points",
+      "point": "#ca8a04",
+      "size": 4,
+      "visible": false
+    },
+    {
+      "id": "solar_panel_point",
+      "group": "Solar",
+      "title": "Existing solar (points)",
+      "point": "#16a34a",
+      "size": 6,
+      "visible": false
+    },
+    {
+      "id": "community_toilet",
+      "group": "Social & resilience",
+      "title": "Community toilets",
+      "point": "#9333ea",
+      "size": 7,
+      "visible": false
+    },
+    {
+      "id": "temporary_shelters",
+      "group": "Social & resilience",
+      "title": "Temporary shelters",
+      "point": "#ea580c",
+      "size": 8,
+      "visible": false
+    },
+    {
+      "id": "hospitals",
+      "group": "Social & resilience",
+      "title": "Hospitals",
+      "point": "#e11d48",
+      "size": 8,
+      "visible": false
+    }
+  ]
+}
