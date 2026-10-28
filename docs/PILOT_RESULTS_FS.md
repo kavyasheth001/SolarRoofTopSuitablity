@@ -48,7 +48,7 @@ bus stops, parking, DP reservation, slum boundary) are listed with reasons under
 | Pilot map | Layer panel (7 groups) shows live counts for all 26; toggles drive the OpenLayers WMS and a WMS overlay draped in Cesium |
 | Disk (monitored every 5 s) | `infra/data` grew by 212 MB (now 350 MB); C: free 172.8 → 172.5 GB |
 
-Layer list, groups, titles, draw order and styles live in one place, `src/modules/geoserver-map/layers/registry.json`,
+Layer list, groups, titles, draw order and styles live in one place, `src/solarsight/layers/registry.json`,
 which both the map and `tools/export/apply-styles.py` read.
 
 ## 3D terrain and hillshade (replaces ArcGIS World Elevation + World Hillshade)
@@ -59,18 +59,53 @@ which both the map and `tools/export/apply-styles.py` read.
 | Coverage | 72.60–73.25°E, 18.70–19.55°N: all of Greater Mumbai (wards span 72.776–72.981°E, 18.894–19.270°N) plus Thane creek, Navi Mumbai, Elephanta, Vasai/Yeoor hills |
 | Grid | 2340 × 3060 cells at 30 m, 100 % valid, −11.5 to 812 m |
 | Heights | Relative to mean sea level (EGM2008), so the sea joins the flat globe with no step. Vendor 3D Tiles in ellipsoidal heights will need a fixed +67 m offset at Mumbai |
-| Terrain tiles | 6,286 gzip quantized-mesh tiles (zoom 0–14, vertex normals), 22 MB, served by nginx at `http://localhost:8601/terrain/mumbai-cop30` |
+| Terrain tiles | 6,286 gzip quantized-mesh tiles (zoom 0–14, vertex normals), 16 MB, served by nginx at `http://localhost:8601/terrain/mumbai-dtm` |
 | Hillshade | GeoServer raster `bmc:mumbai_hillshade`, style keeps flat ground transparent so only ridges and valleys shade the basemap |
 | In the map | Cesium uses the local terrain; every F/S building is placed on the sampled ground height; hillshade is under the data layers in both 2D and 3D |
 | Spot checks | Sea 0 m, Parel 16.8 m, Malabar Hill 57.6 m, SGNP ridge sample 139.8 m |
 
-Rebuild everything with `bash tools/terrain/build-terrain.sh` (about 70 s). Copernicus DEM is a surface model,
-so dense high-rise blocks are slightly raised at 30 m resolution; swap in BMC's bare-earth DEM GeoTIFF when it
-is supplied (same script, different input).
+Rebuild everything with `bash tools/terrain/build-terrain.sh` (about 70 s).
+
+**Bare earth (2026-10-29).** Copernicus DEM is a surface model: in F/S it was a median 4.6 m above the street
+(1.9-8.1 m, 10th-90th percentile), which buried LoD2 buildings and the Reality Mesh. The terrain is now a
+morphological opening of the DEM (7 × 7 cells) blended with the true ground at each LoD2 building base (a ray cast
+upwards hits the base: `tools/terrain/lod2-ground.mjs`, 9,389 points, 579 outliers dropped). Against those bases:
+median 0.00 m, 95 % within 1.5 m. Swap in BMC's bare-earth DEM GeoTIFF when it is supplied (same script).
 
 Two lessons fixed in config:
 - cesium-terrain-builder writes gzip tiles, so nginx must send `Content-Encoding: gzip` for `.terrain`.
 - Terrain tiles are served with `Cache-Control: no-cache`, so browsers never keep a stale or wrongly-encoded copy.
+
+## Vendor 3D models: Reality Mesh and LoD2 (mirrored, no conversion)
+
+CesiumJS reads I3S directly (`I3SDataProvider`), so the vendor's scene layers are copied file by file into
+the same REST layout on the local nginx (`http://localhost:8601/i3s/<service>/SceneServer/...`). Nothing is
+converted, so geometry, textures and levels of detail are exactly the vendor's. Script: `tools/reality/mirror.mjs`.
+
+| Model | Source | F/S selection | Size |
+|---|---|---|---|
+| LoD2 buildings (roof shapes) | 6 segments of "LoD 2 without Texture", I3S 1.9 3DObject, Draco | whole ward, all levels | 483 files, ~30 MB |
+| Reality Mesh (photo 3D) | 7 of the 30 "Reality Model" segments touch F/S, I3S 1.7 IntegratedMesh, JPEG | ward outline to level 12 (tiles ~100 m) + full detail (levels 13-16) in a 1.2 × 1.3 km showcase box around Parel | ~35 GB estimated (from vertex counts; 142 bytes/vertex measured) |
+
+- **Why a level cap.** On a 0.4 km test box, levels 13-16 (tiles 3-9 m across) were 78 % of the 1.76 GB
+  download. Full detail for the whole ward would be ~100 GB+. Raise or move the detail box with
+  `--max-level` / `--detail minLon,minLat,maxLon,maxLat`.
+- **No holes.** A node refines only if all its children are kept; otherwise it stays a leaf, so the edge of
+  the area is just coarser.
+- **Heights.** The mesh is in metres above mean sea level (EGM96), like the local terrain, so it sits on the
+  ground with no geoid shift.
+- **Look.** The mesh is drawn unlit (the photos already carry daylight); LoD2 gets computed normals so it
+  shades with the sun. Both cast and receive shadows.
+- **Picking.** Clicking LoD2 or the mesh selects the GeoServer building under that point, so the attribute
+  card and the solar tool work with any 3D model.
+- **Layer panel.** New "3D models" group: LoD1 blocks (WFS), LoD2 buildings, Reality Mesh. The panel is
+  anchored left so its checkboxes are never clipped on a narrow 2D map.
+
+```bash
+node tools/reality/mirror.mjs --group lod2          # LoD2, ~1 min
+node tools/reality/mirror.mjs --concurrency 12      # Reality Mesh, a few hours; re-run resumes
+node tools/reality/mirror.mjs --dry-run             # nodes per level and size, no download
+```
 
 ## How to run it again
 
@@ -82,14 +117,14 @@ node tools/export/export-arcgis.mjs --config tools/export/fs-layers.json
 # 3. Load into PostGIS, publish in GeoServer, apply styles
 bash tools/export/load-and-publish.sh
 python tools/export/apply-styles.py
-# 4. Open the GeoServer map at http://localhost:8080/mumbai/geoserver-map.html
+# 4. Open SolarSight at http://localhost:8080/mumbai/solarsight/ (see docs/SOLARSIGHT_PRODUCT.md)
 npm run dev
 ```
 Admin UI: http://localhost:8600/geoserver (credentials in `infra/.env`, local-only, git-ignored).
 
 Files added: `infra/docker-compose.yml`, `infra/nginx.conf`, `tools/export/export-arcgis.mjs`,
 `tools/export/fs-layers.json`, `tools/export/load-and-publish.sh`, `tools/copy-cesium-assets.mjs`,
-`src/modules/geoserver-map/` (standalone page `geoserver-map.html`, its own entry point; the existing ArcGIS app in `index.html` / `src/App.jsx` is untouched). Dependencies added: `cesium@1.146.0`, `ol@10.11.0`.
+`src/solarsight/` (the SolarSight app, entry `solarsight/index.html`; the existing ArcGIS app in `index.html` / `src/App.jsx` is untouched). Dependencies added: `cesium@1.146.0`, `ol@10.11.0`.
 
 ---
 

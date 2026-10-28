@@ -1,0 +1,19 @@
+@config "../../tailwind.solarsight.cjs";
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html, body, #root { height: 100%; }
+  body { @apply bg-slate-50 font-sans text-slate-800 antialiased; }
+}
+
+@layer components {
+  .glass { @apply bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/85; }
+  .panel-scroll { scrollbar-width: thin; scrollbar-color: #cbd5e1 transparent; }
+  .field { @apply w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 outline-none transition focus:border-sun-500 focus:ring-2 focus:ring-sun-100; }
+  .label { @apply mb-1 block text-xs font-semibold text-slate-500; }
+}
+
+/* Cesium credits (logo + data attribution) stay visible, just smaller and in the bottom-right corner. */
+.cesium-viewer-bottom { @apply !bottom-1 !left-auto !right-2 origin-bottom-right scale-90 opacity-80; }

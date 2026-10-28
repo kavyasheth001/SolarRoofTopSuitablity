@@ -202,7 +202,7 @@ IDs and aggregate unit counts (`resunit`, `comunit`, `indunit`). Do not store na
 ### Phase M4: restructure the frontend (6–8 days)
 New layout (UI components stay; only the map plumbing changes):
 ```
-src/modules/geoserver-map/      (standalone page, separate from the ArcGIS app)
+src/solarsight/                 (SolarSight product app, separate from the ArcGIS app)
   engine/CesiumEngine.js     viewer, camera, picking, screenshots, sun/shadows
   engine/OlEngine.js         2D atlas / dashboard maps
   layers/registry.json       every layer: id, title, group, kind (wfs|wms|mvt|3dtiles), url, style, visibleByDefault

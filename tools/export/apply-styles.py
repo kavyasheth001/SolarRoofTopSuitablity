@@ -1,4 +1,4 @@
-"""Create one SLD style per layer from src/modules/geoserver-map/layers/registry.json and make it the layer's default in GeoServer.
+"""Create one SLD style per layer from src/solarsight/layers/registry.json and make it the layer's default in GeoServer.
 
     python tools/export/apply-styles.py            (run from the project root, stack running)
 
@@ -57,7 +57,7 @@ def sld(name, s):
 
 
 results = []
-for s in json.loads((ROOT / "src/modules/geoserver-map/layers/registry.json").read_text(encoding="utf-8"))["layers"]:
+for s in json.loads((ROOT / "src/solarsight/layers/registry.json").read_text(encoding="utf-8"))["layers"]:
     layer = s["id"]
     style = f"sol_{layer}"
     body = sld(style, s)

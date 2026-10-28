@@ -24,7 +24,7 @@ export function roofHeatmapPrimitive(analysis, roofHeight) {
     return new Cesium.GeometryInstance({
       geometry: new Cesium.RectangleGeometry({
         rectangle: Cesium.Rectangle.fromDegrees(w, south, e, north),
-        height: roofHeight + 0.3,
+        height: (s.zAbs ?? roofHeight) + 0.15, // each cell on its own roof height (LoD2), else the flat roof
         vertexFormat: Cesium.PerInstanceColorAppearance.FLAT_VERTEX_FORMAT,
       }),
       attributes: { color: Cesium.ColorGeometryInstanceAttribute.fromColor(rampColor(s.litHours / hours)) },
@@ -34,7 +34,7 @@ export function roofHeatmapPrimitive(analysis, roofHeight) {
     geometryInstances: instances,
     appearance: new Cesium.PerInstanceColorAppearance({ flat: true, translucent: false }),
     shadows: Cesium.ShadowMode.DISABLED,
-    asynchronous: true,
+    asynchronous: false, // built at once: the map only renders on demand
   });
 }
 
@@ -52,6 +52,7 @@ export async function groundHeightAt(viewer, [lon, lat]) {
 
 // Proposed (what-if) or designed building as an extruded, shadow-casting entity.
 export function addBlockEntity(viewer, { ring, base, height, color, label }) {
+  viewer.scene.requestRender();
   return viewer.entities.add({
     polygon: {
       hierarchy: Cesium.Cartesian3.fromDegreesArray(ring.flat()),
@@ -126,15 +127,19 @@ export function drawFootprint(viewer, { color = '#22d3ee', onChange, onFinish })
     if (last && Math.hypot(p.lonLat[0] - last.lonLat[0], p.lonLat[1] - last.lonLat[1]) < 2e-6) return; // 2nd click of a double-click
     points.push(p);
     onChange?.(points.length);
+    viewer.scene.requestRender();
   }, Cesium.ScreenSpaceEventType.LEFT_CLICK);
-  handler.setInputAction((e) => { hover = pickPoint(viewer, e.endPosition); }, Cesium.ScreenSpaceEventType.MOUSE_MOVE);
-  handler.setInputAction(() => { points.pop(); onChange?.(points.length); }, Cesium.ScreenSpaceEventType.RIGHT_CLICK);
+  // The outline follows the mouse; with on-demand rendering every move must ask for a frame.
+  handler.setInputAction((e) => { hover = pickPoint(viewer, e.endPosition); viewer.scene.requestRender(); }, Cesium.ScreenSpaceEventType.MOUSE_MOVE);
+  handler.setInputAction(() => { points.pop(); onChange?.(points.length); viewer.scene.requestRender(); }, Cesium.ScreenSpaceEventType.RIGHT_CLICK);
   handler.setInputAction(() => finish(), Cesium.ScreenSpaceEventType.LEFT_DOUBLE_CLICK);
   return { finish, cancel: cleanup };
 }
 
 // Map screenshot for the dashboard / PDF, centre-cropped to 800 × 500.
 export function captureView(viewer, width = 800, height = 500) {
+  // The map renders on demand, so ask for a frame first; the canvas is read right after it is drawn.
+  viewer.scene.requestRender();
   viewer.render();
   const src = viewer.scene.canvas;
   const out = document.createElement('canvas');

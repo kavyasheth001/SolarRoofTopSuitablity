@@ -3,7 +3,7 @@
 import { OWS_URL, BUILDINGS_TYPE } from '../config';
 import { NEIGHBOUR_RADIUS_M } from './solarAnalysis';
 
-const PROPS = 'geom,name,class,sub_class,no_floors,height,area_sqmtr,bld_id,address';
+const PROPS = 'geom,name,class,sub_class,no_floors,height,area_sqmtr,bld_id,address,flat_count';
 
 async function getFeatures(params) {
   const body = new URLSearchParams({

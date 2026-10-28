@@ -5,8 +5,8 @@
 // sampling the roof on a fine grid instead of polygon union/intersect, which also gives sun-hours per
 // roof cell (drawn as a heatmap) and tells which neighbour blocks how much.
 // Scoring and money figures come from the shared, SDK-free src/utils/solarEngine.js so both maps agree.
-import { getSolarPosition, computeScore, computeFinancials, floorsStringToHeight, METERS_PER_FLOOR } from '../../../utils/solarEngine.js';
-import { computeShadeFactor } from '../../../utils/solarCalculations.js';
+import { getSolarPosition, computeScore, computeFinancials, floorsStringToHeight, METERS_PER_FLOOR } from '../../utils/solarEngine.js';
+import { computeShadeFactor } from '../../utils/solarCalculations.js';
 
 export const ANALYSIS_HOURS = Array.from({ length: 13 }, (_, i) => i + 6);
 export const NEIGHBOUR_RADIUS_M = 200;
@@ -29,7 +29,7 @@ export function polygonsOf(geometry) {
   return geometry.type === 'MultiPolygon' ? geometry.coordinates : [geometry.coordinates];
 }
 
-function ringArea(ring) {
+export function ringArea(ring) {
   let a = 0;
   for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) a += (ring[j][0] + ring[i][0]) * (ring[j][1] - ring[i][1]);
   return a / 2;
@@ -61,7 +61,7 @@ export function localFrame([lon0, lat0]) {
   };
 }
 
-function bboxOf(points) {
+export function bboxOf(points) {
   let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
   for (const [x, y] of points) {
     if (x < minX) minX = x; if (x > maxX) maxX = x;
@@ -72,7 +72,7 @@ function bboxOf(points) {
 
 const overlaps = (a, b) => a.minX <= b.maxX && a.maxX >= b.minX && a.minY <= b.maxY && a.maxY >= b.minY;
 
-function inRing(x, y, ring) {
+export function inRing(x, y, ring) {
   let inside = false;
   for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
     const [xi, yi] = ring[i]; const [xj, yj] = ring[j];
@@ -81,10 +81,10 @@ function inRing(x, y, ring) {
   return inside;
 }
 
-const inPolygon = (x, y, rings) => inRing(x, y, rings[0]) && !rings.slice(1).some((h) => inRing(x, y, h));
+export const inPolygon = (x, y, rings) => inRing(x, y, rings[0]) && !rings.slice(1).some((h) => inRing(x, y, h));
 
 // Andrew's monotone chain; returns the hull counter-clockwise.
-function convexHull(points) {
+export function convexHull(points) {
   const pts = points.slice().sort((a, b) => a[0] - b[0] || a[1] - b[1]);
   if (pts.length <= 2) return pts;
   const cross = (o, a, b) => (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0]);
@@ -102,7 +102,7 @@ function convexHull(points) {
   return lower.slice(0, -1).concat(upper.slice(0, -1));
 }
 
-function inConvex(x, y, hull) {
+export function inConvex(x, y, hull) {
   for (let i = 0, j = hull.length - 1; i < hull.length; j = i++) {
     if ((hull[i][0] - hull[j][0]) * (y - hull[j][1]) - (hull[i][1] - hull[j][1]) * (x - hull[j][0]) < 0) return false;
   }
@@ -110,7 +110,7 @@ function inConvex(x, y, hull) {
 }
 
 // Shadow of one footprint part: hull of the outline and the outline moved along the shadow direction.
-function shadowHull(ringXY, effectiveHeight, solar) {
+export function shadowHull(ringXY, effectiveHeight, solar) {
   const length = effectiveHeight / Math.tan(solar.altitudeRad);
   const az = solar.azimuthRad + Math.PI; // shadow falls opposite to the sun
   const dx = length * Math.sin(az);
