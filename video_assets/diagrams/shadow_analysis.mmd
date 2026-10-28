@@ -1,0 +1,42 @@
+graph TD
+    A[Start: Select Building] --> B[Get Building Geometry & Attributes]
+    B --> C[Determine Analysis Time (Hour & Season)]
+    C --> D[Calculate Solar Position (Altitude & Azimuth)]
+    D --> E{Sun Altitude >= 5°?}
+    E -- No --> F[Mark Hour as No Sun]
+    E -- Yes --> G[Query Neighboring Buildings within 200m]
+    G --> H[For Each Neighbor: Calculate Shadow Polygon]
+    H --> I[Union All Shadow Polygons]
+    I --> J[Intersect with Rooftop Polygon]
+    J --> K[Calculate Shadow Fraction]
+    K --> L[Sunlit Percentage = 1 - Shadow Fraction]
+    L --> M{Sunlit % > 30%?}
+    M -- No --> N[Mark Hour as Not Sunny]
+    M -- Yes --> O[Mark Hour as Sunny]
+    N --> P[Next Hour]
+    O --> P
+    P --> Q{All Hours Processed?}
+    Q -- No --> C
+    Q -- Yes --> R[Compute Sunny Hours & Average Sunlit %]
+    R --> S[Calculate Final Score]
+    S --> T[Output: Score, Financials, etc.]
+    style A fill:#e0f2fe,stroke:#0284c7,stroke-width:2px
+    style B fill:#bfdbfe,stroke:#0284c7,stroke-width:2px
+    style C fill:#93c5fd,stroke:#0284c7,stroke-width:2px
+    style D fill:#60a5fa,stroke:#0284c7,stroke-width:2px
+    style E fill:#fbbf24,stroke:#92400e,stroke-width:2px
+    style F fill:#fee2e2,stroke:#ef4444,stroke-width:2px
+    style G fill:#fde68a,stroke:#92400e,stroke-width:2px
+    style H fill:#fcd34d,stroke:#92400e,stroke-width:2px
+    style I fill:#fbbf24,stroke:#92400e,stroke-width:2px
+    style J fill:#facc15,stroke:#92400e,stroke-width:2px
+    style K fill:#fde047,stroke:#92400e,stroke-width:2px
+    style L fill:#fde68a,stroke:#92400e,stroke-width:2px
+    style M fill:#fbbf24,stroke:#92400e,stroke-width:2px
+    style N fill:#fee2e2,stroke:#ef4444,stroke-width:2px
+    style O fill:#bbf7d0,stroke:#16a34a,stroke-width:2px
+    style P fill:#dcfce7,stroke:#16a34a,stroke-width:2px
+    style Q fill:#fbbf24,stroke:#92400e,stroke-width:2px
+    style R fill:#bbf7d0,stroke:#16a34a,stroke-width:2px
+    style S fill:#86efac,stroke:#16a34a,stroke-width:2px
+    style T fill:#4ade80,stroke:#16a34a,stroke-width:2px

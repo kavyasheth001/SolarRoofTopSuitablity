@@ -1,0 +1,64 @@
+SolarSight Motion Graphic Video - Storyboard
+
+Scene 1: Introduction (0:00-0:20)
+- Visual: Aerial drone-like shot flying over Mumbai cityscape, focusing on dense urban area with varied rooftop heights.
+- Text: "Mumbai has over 12,500 mapped buildings. Manually assessing rooftop solar suitability is infeasible at scale."
+- Animation: Camera zooms into a specific neighborhood, highlighting rooftops with subtle pulse effect.
+- Transition: Fade to next scene.
+
+Scene 2: Solution Overview (0:20-0:40)
+- Visual: Split screen - left shows the 3D map interface of SolarSight with a building selected, right shows animated data flowing: shadow lines, score number, financial icons.
+- Text: "SolarSight: AI-Powered Rooftop Solar Suitability Analysis"
+- Animation: Data points animate from the selected building to icons representing score, generation, savings.
+- Transition: Slide left to reveal feature breakdown.
+
+Scene 3.1: 3D Shadow Analysis (0:40-0:55)
+- Visual: Isometric view of a rooftop with surrounding buildings. Sun icon moves in arc from east to west (6 AM to 6 PM).
+- Animation: Shadows cast by neighboring buildings move across the rooftop as sun moves. Graph of hourly sunlight percentage draws in real-time.
+- Text: "Simulates sun position across the year using ArcGIS SceneView's ShadowAccumulation"
+- Transition: Elements fade out, gauge appears.
+
+Scene 3.2: Solar Suitability Score (0:55-1:10)
+- Visual: Large circular gauge in center, animating from 0 to 77. Color transitions from red to yellow to green.
+- Around gauge: four segments with icons and labels: Sun (50%), Area (20%), Height (10%), Irradiance (20%).
+- Animation: Each segment lights up as its contribution is added, with numerical values appearing.
+- Text: "Score = (Sunlit % × 0.5) + (Area × 0.2) + (Height × 0.1) + (Irradiance × 0.2)"
+- Transition: Gauge shrinks to corner, financial icons explode outward.
+
+Scene 3.3: Financial & Environmental Projections (1:10-1:25)
+- Visual: Four large icons appear in grid: ⚡ (Capacity), 💰 (Savings), ☁️ (CO₂), ⏱️ (Payback).
+- Animation: Each icon counts up from 0 to its value with appropriate units (kWp, ₹/yr, tonnes/yr, years).
+- Text: "Capacity • Generation • Savings • Payback • CO₂ Offset"
+- Transition: Icons fold into a split screen for What-If.
+
+Scene 3.4: What-If Simulation (1:25-1:40)
+- Visual: Split screen.
+  - Left: Current scene with buildings, shadows on rooftop, score 59 shown.
+  - Right: Same scene but neighboring buildings faded out, shadows reduced, score 77 shown.
+- Animation: Arrow between screens labeled "Impact: -18 points" with minus sign animating.
+- Text: "What-If: 77/100 without neighbors → 59/100 actual (−18 pts)"
+- Transition: Screens merge into dashboard view.
+
+Scene 4: Analysis Dashboard (1:40-1:55)
+- Visual: Dashboard layout with building cards in a grid. Each card shows: building name, suitability badge (green/yellow/red), score, and PDF icon.
+- Animation: User cursor interacts: clicks filter dropdown ("Score: High to Low"), sorts cards, clicks PDF button on a card.
+- Text: "Analysis Dashboard • Filter • Sort • PDF Export"
+- Transition: Cards flip to show PDF report preview.
+
+Scene 5: Technical Architecture (1:55-2:05)
+- Visual: Architecture diagram (as per architecture.mmd) appearing layer by layer.
+- Animation: Data flow arrows animate from user to frontend to backend to database.
+- Text: "Built on the TrueGeoMap Platform"
+- Transition: Diagram fades to use case icons.
+
+Scene 6: Use Cases & Impact (2:05-2:20)
+- Visual: Four icons appear: 🏛️ (Municipal Policy), 👨‍👩‍👧‍👦 (Citizen Portal), 🏭 (Developer Feasibility), 🏘️ (Urban Planning).
+- Animation: Each icon pulses as its use case is mentioned. Map of Mumbai appears underneath, wards lighting up in sequence.
+- Text: "Policy • Citizen Portal • Developer Feasibility • Urban Planning"
+- Transition: Icons coalesce into the SolarSight logo.
+
+Scene 7: Call to Action (2:20-2:30)
+- Visual: SolarSight interface in full screen, with a prominent button "Analyze Your Rooftop" in the tool panel.
+- Animation: Button pulses with glowing outline. Cursor clicks button, loading spinner appears, then results show.
+- Text: "Try SolarSight Today"
+- Final frame: Logo and text "Powered by TrueGeoMap / Antigravity" with background fading to black.

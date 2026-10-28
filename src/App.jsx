@@ -1,15 +1,16 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, lazy, Suspense } from 'react';
 import { Route, Routes, useLocation } from 'react-router-dom';
 import Loader from './common/Loader';
 import PageTitle from './components/PageTitle';
-import NewLogin from './components/Login/NewLogin';
-import TwoDMap from './components/Maps/TwoDMap';
-import SolarDashboard from './pages/SolarDashboard';
-import ProtectedRoute from './ProtectedRoute';
 import DefaultLayout from './layout/DefaultLayout';
 
+// Lazy-load heavy route components — they're only fetched when first navigated to
+const NewLogin = lazy(() => import('./components/Login/NewLogin'));
+const TwoDMap = lazy(() => import('./components/Maps/TwoDMap'));
+const SolarDashboard = lazy(() => import('./pages/SolarDashboard'));
+const Methodology = lazy(() => import('./pages/Methodology'));
+
 function App() {
-  const [loading, setLoading] = useState(true);
   const { pathname } = useLocation();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [isHeaderCollapsed, setIsHeaderCollapsed] = useState(false);
@@ -18,15 +19,11 @@ function App() {
     window.scrollTo(0, 0);
   }, [pathname]);
 
-  useEffect(() => {
-    setTimeout(() => setLoading(false), 1000);
-  }, []);
-
-  const excludedRoutes = ['/', '/dashboard'];
+  const excludedRoutes = ['/', '/dashboard', '/methodology'];
   const isExcludedRoute = excludedRoutes.includes(pathname);
 
   const appContent = (
-    <>
+    <Suspense fallback={<Loader />}>
       <Routes>
         <Route
           index
@@ -55,19 +52,26 @@ function App() {
             </>
           }
         />
+        <Route
+          path="/methodology"
+          element={
+            <>
+              <PageTitle title="Solar Methodology | SolarSight" />
+              <Methodology />
+            </>
+          }
+        />
       </Routes>
-    </>
+    </Suspense>
   );
 
-  return loading ? (
-    <Loader />
-  ) : isExcludedRoute ? (
+  return isExcludedRoute ? (
     appContent
   ) : (
     <DefaultLayout sidebarOpen={sidebarOpen}
       setSidebarOpen={setSidebarOpen}
       isHeaderCollapsed={isHeaderCollapsed}
-      setIsHeaderCollapsed={setIsHeaderCollapsed} >{appContent}</DefaultLayout>
+      setIsHeaderCollapsed={setIsHeaderCollapsed}>{appContent}</DefaultLayout>
   );
 }
 

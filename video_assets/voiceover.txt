@@ -1,0 +1,31 @@
+SolarSight Motion Graphic Video - Voice-over Script
+
+[0:00-0:20]
+Mumbai’s skyline is dotted with thousands of rooftops, each a potential site for solar energy. But manually evaluating each building for solar panel installation—considering roof area, shadow from neighboring high-rises, orientation, and sunlight hours—is simply impossible at scale.
+
+[0:20-0:40]
+Enter SolarSight—an intelligent geospatial tool that automates this process. By combining ArcGIS Enterprise's 3D city model with real-time shadow simulation, SolarSight computes a solar suitability score, estimates energy generation, and projects financial savings—in seconds.
+
+[0:40-0:55]
+First, SolarSight simulates the sun’s position for every hour of daylight. It calculates the shadow cast by surrounding buildings on each rooftop, determining the percentage of area under shadow and deriving the 'sunny hours' metric.
+
+[0:55-1:10]
+The tool then computes a composite Solar Suitability Score from 0 to 100, weighting sunlit exposure at 50%, roof area at 20%, building height at 10, and solar irradiance at 20. Scores are categorized as Suitable (60–100), Moderately Suitable (35–59), or Unsuitable (0–34).
+
+[1:10-1:25]
+From the score, SolarSight estimates the system’s capacity in kilowatts-peak, annual energy generation, financial savings based on local tariffs, payback period, and carbon offset using India’s grid emission factor.
+
+[1:25-1:40]
+Users can run a What-If simulation to see how much shadow from neighboring buildings affects the score. This helps planners identify where tall neighbors are the limiting factor and prioritize interventions.
+
+[1:40-1:55]
+All analyzed buildings are saved to an interactive dashboard. Users can filter by name, sort by score or date, and export a branded PDF report for each building—complete with a 3D screenshot, metrics, and projection tables.
+
+[1:55-2:05]
+SolarSight is built as a tool within the TrueGeoMap platform, using React and Vite for the frontend, ArcGIS JS API for 3D rendering and shadow analysis, and a Node.js/Express backend with PostgreSQL for saving analyses. It leverages the platform’s existing authentication, routing, and export utilities.
+
+[2:05-2:20]
+SolarSight supports multiple use cases: municipal officers can target incentives to wards with high solar potential; citizens can check their rooftop score before applying for net metering; solar EPC companies can run quick feasibility checks; and urban planners can factor rooftop solar into new development approvals.
+
+[2:20-2:30]
+With SolarSight, Mumbai’s solar potential is just a click away. Discover how your rooftop can contribute to a greener, more sustainable city.

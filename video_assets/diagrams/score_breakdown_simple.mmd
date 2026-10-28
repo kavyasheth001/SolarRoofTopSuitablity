@@ -1,0 +1,27 @@
+graph TD
+    A[Solar Suitability Score 0-100] --> B[Sunlit Exposure 50% Weight]
+    A --> C[Roof Area Score 20% Weight]
+    A --> D[Building Height Score 10% Weight]
+    A --> E[Solar Irradiance Score 20% Weight]
+    B --> B1[Sunlit Fraction]
+    B --> B2[Normalize to 0-100]
+    B --> B3[Weighted 50%]
+    C --> C1[Rooftop Area]
+    C --> C2[Area Score Formula]
+    C --> C3[Weighted 20%]
+    D --> D1[Building Height]
+    D --> D2[Height Score Formula]
+    D --> D3[Weighted 10%]
+    E --> E1[Fixed Irradiance Value]
+    E --> E2[Irradiance Score 92/100]
+    E --> E3[Weighted 20%]
+    B3 --> F[Sum Weighted]
+    C3 --> F
+    D3 --> F
+    E3 --> F
+    F --> G[Final Score Rounded]
+    G --> H[Clamp 0-100]
+    H --> I[Suitability Class]
+    I --> J[Suitable 60-100]
+    I --> K[Moderate 35-59]
+    I --> L[Unsuitable 0-34]

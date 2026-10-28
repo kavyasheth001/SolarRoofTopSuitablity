@@ -1,0 +1,4 @@
+- [Web Design Guidelines](web-design-guidelines.md) — Review UI code for Web Interface Guidelines compliance
+- [Image to Code](image-to-code.md) — Elite website image-to-code skill for Codex
+- [Awesome Design](awesome-design.md) — Awesome Design collection from VoltAgent GitHub repo
+- [Playwright CLI](playwright-cli.md) — Token-efficient browser automation for coding agents

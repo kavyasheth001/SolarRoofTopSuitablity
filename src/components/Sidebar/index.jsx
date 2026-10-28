@@ -282,6 +282,30 @@ const Sidebar = ({ sidebarOpen, setSidebarOpen }) => {
               </li>
             </ul>
 
+            {/* Methodology reference link */}
+            <div style={{ borderTop: '1px solid #f1f5f9', paddingTop: 16, marginTop: 4 }}>
+              <h3 className="mb-3 px-4 text-sm font-bold uppercase tracking-wider" style={{ color: secondaryColor }}>
+                REFERENCE
+              </h3>
+              <NavLink
+                to="/methodology"
+                className={({ isActive }) =>
+                  `group relative flex items-center gap-3.5 rounded-lg py-3 px-4 font-medium text-base duration-200 ease-in-out hover:bg-[#eff6ff] transition-all ${isActive ? 'bg-blue-50 text-[#2B5DB1]' : 'text-gray-600'}`
+                }
+              >
+                {({ isActive }) => (
+                  <>
+                    {isActive && <span style={activeIndicatorStyle} />}
+                    <span style={{ fontSize: 18 }}>☀️</span>
+                    <div>
+                      <div style={{ fontSize: 13, lineHeight: 1.2 }}>Calculation Methodology</div>
+                      <div style={{ fontSize: 10, color: '#94a3b8', fontWeight: 400 }}>Formulas &amp; data sources</div>
+                    </div>
+                  </>
+                )}
+              </NavLink>
+            </div>
+
             </div>
         </nav>
       </div>

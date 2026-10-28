@@ -1,0 +1,22 @@
+graph TD
+    A[Select Building] --> B[Get Building Geometry]
+    B --> C[Determine Analysis Time]
+    C --> D[Calculate Solar Position]
+    D --> E{Sun Altitude >= 5°?}
+    E -- No --> F[Mark Hour as No Sun]
+    E -- Yes --> G[Query Neighboring Buildings]
+    G --> H[For Each Neighbor Calculate Shadow]
+    H --> I[Union All Shadow Polygons]
+    I --> J[Intersect with Rooftop Polygon]
+    J --> K[Calculate Shadow Fraction]
+    K --> L[Sunlit Percentage = 1 - Shadow Fraction]
+    L --> M{Sunlit % > 30%?}
+    M -- No --> N[Mark Hour as Not Sunny]
+    M -- Yes --> O[Mark Hour as Sunny]
+    N --> P[Next Hour]
+    O --> P
+    P --> Q{All Hours Processed?}
+    Q -- No --> C
+    Q -- Yes --> R[Compute Sunny Hours Average]
+    R --> S[Calculate Final Score]
+    S --> T[Output Score Financials etc]

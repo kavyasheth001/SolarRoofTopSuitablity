@@ -1,0 +1,51 @@
+graph TD
+    A[Solar Suitability Score (0-100)] --> B[Sunlit Exposure: 50% Weight]
+    A --> C[Roof Area Score: 20% Weight]
+    A --> D[Building Height Score: 10% Weight]
+    A --> E[Solar Irradiance Score: 20% Weight]
+    B --> B1[Sunlit Fraction = Sunlit Area / Total Roof Area]
+    B --> B2[Normalize to 0-100 Scale]
+    B --> B3[Weighted Contribution: B2 * 0.50]
+    C --> C1[Rooftop Area from Geometry]
+    C --> C2[Area Score = min(100, (log10(Area) / log10(100)) * 100)]
+    C --> C3[Weighted Contribution: C2 * 0.20]
+    D --> D1[Building Height from Attributes]
+    D --> D2[Height Score = min(100, (Height / 30) * 100)]
+    D --> D3[Weighted Contribution: D2 * 0.10]
+    E --> E1[Fixed Irradiance Value for Mumbai]
+    E --> E2[Irradiance Score = 92 (out of 100)]
+    E --> E3[Weighted Contribution: E2 * 0.20]
+    B3 --> F[Sum Weighted Contributions]
+    C3 --> F
+    D3 --> F
+    E3 --> F
+    F --> G[Final Score = Round(Sum)]
+    G --> H[Clamp to 0-100]
+    H --> I[Suitability Class]
+    I --> J[Suitable: 60-100]
+    I --> K[Moderately Suitable: 35-59]
+    I --> L[Unsuitable: 0-34]
+    style A fill:#f8fafc,stroke:#334155,stroke-width:2px
+    style B fill:#eff6ff,stroke:#1e40af,stroke-width:2px
+    style C fill:#f0fdf4,stroke:#16a34a,stroke-width:2px
+    style D fill:#fffbeb,stroke:#d97706,stroke-width:2px
+    style E fill:#fef2f2,stroke:#ef4444,stroke-width:2px
+    style B1 fill:#dbeafe,stroke:#1e40af,stroke-width:1px
+    style B2 fill:#bfdbfe,stroke:#1e40af,stroke-width:1px
+    style B3 fill:#93c5fd,stroke:#1e40af,stroke-width:1px
+    style C1 fill:#dcfce7,stroke:#16a34a,stroke-width:1px
+    style C2 fill:#bbf7d0,stroke:#16a34a,stroke-width:1px
+    style C3 fill:#86efac,stroke:#16a34a,stroke-width:1px
+    style D1 fill:#fed7aa,stroke:#d97706,stroke-width:1px
+    style D2 fill:#fde68a,stroke:#d97706,stroke-width=1px
+    style D3 fill:#facc15,stroke:#d97706,stroke-width=1px
+    style E1 fill:#fecaca,stroke:#ef4444,stroke-width:1px
+    style E2 fill:#fca5a5,stroke:#ef4444,stroke-width:1px
+    style E3 fill:#fb7185,stroke:#ef4444,stroke-width:1px
+    style F fill:#e2e8f0,stroke:#64748b,stroke-width:2px
+    style G fill:#cbd5e1,stroke:#64748b,stroke-width:2px
+    style H fill:#94a3b8,stroke:#64748b,stroke-width:2px
+    style I fill:#f1f5f9,stroke:#64748b,stroke-width:2px
+    style J fill:#bbf7d0,stroke:#16a34a,stroke-width:1px
+    style K fill:#fef3c7,stroke:#d97706,stroke-width:1px
+    style L fill:#fee2e2,stroke:#ef4444,stroke-width:1px

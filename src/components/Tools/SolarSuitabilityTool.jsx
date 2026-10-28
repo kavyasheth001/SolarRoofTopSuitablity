@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import Daylight from "@arcgis/core/widgets/Daylight.js";
 import Graphic from "@arcgis/core/Graphic.js";
 import GraphicsLayer from "@arcgis/core/layers/GraphicsLayer.js";
@@ -20,10 +21,10 @@ const lodTitles = [
   'Slum LoD 2 without Texture'
 ];
 
-/* --- Animated Score Gauge ---------------------------------------- */
 /* --- InfoAccordion Component ---------------------------------------- */
-const InfoAccordion = ({ children, onShowMethodology }) => {
+const InfoAccordion = ({ children, section }) => {
   const [open, setOpen] = React.useState(false);
+  const navigate = useNavigate();
   return (
     <div style={{ marginTop: 4, border: '1px solid #e5e7eb', borderRadius: 6, overflow: 'hidden' }}>
       <button
@@ -36,7 +37,8 @@ const InfoAccordion = ({ children, onShowMethodology }) => {
       {open && (
         <div style={{ padding: '8px 10px', background: '#fff', fontSize: 11, color: '#64748b', lineHeight: 1.6 }}>
           {children}
-          <button onClick={onShowMethodology}
+          <button
+            onClick={() => navigate(`/methodology${section ? '#' + section : ''}`)}
             style={{ marginTop: 6, fontSize: 10, color: '#2563eb', background: 'none', border: 'none', cursor: 'pointer', padding: 0, textDecoration: 'underline' }}>
             View full methodology &#x2192;
           </button>
@@ -2153,7 +2155,7 @@ const SolarSuitabilityTool = ({ view, onClose, panelWidth = 420 }) => {
                       </div>
                     ))}
                   </div>
-                  <InfoAccordion title="shadow">
+                  <InfoAccordion section="shadow">
                     Sun position is computed hourly (6 AM–6 PM, 13 steps) using the solar altitude and azimuth at Mumbai (19.076°N, 72.877°E). For each hour, neighbouring buildings within 200 m cast shadow polygons proportional to their height above the analysed rooftop. An hour is "sunny" when less than 70% of the rooftop is shadowed.
                   </InfoAccordion>
                 </div>
@@ -2225,7 +2227,7 @@ const SolarSuitabilityTool = ({ view, onClose, panelWidth = 420 }) => {
                       </div>
                     ))}
                   </div>
-                  <InfoAccordion title="panels">
+                  <InfoAccordion section="panels">
                     Usable area = 70% of rooftop (accounts for setbacks, ducts, water tanks). Panel count = Usable area &divide; 2 m&sup2; (footprint per 330 W panel). System capacity (kWp) = Panel count &times; 330 W &divide; 1000.
                   </InfoAccordion>
                 </div>
@@ -2247,7 +2249,7 @@ const SolarSuitabilityTool = ({ view, onClose, panelWidth = 420 }) => {
                       </div>
                     ))}
                   </div>
-                  <InfoAccordion title="energy">
+                  <InfoAccordion section="panels">
                     Annual Generation = System Capacity &times; 1,500 kWh/kWp. The 1,500 kWh/kWp figure is Mumbai&rsquo;s average annual global horizontal irradiance performance ratio, based on MNRE data for Maharashtra.
                   </InfoAccordion>
                 </div>
@@ -2272,7 +2274,7 @@ const SolarSuitabilityTool = ({ view, onClose, panelWidth = 420 }) => {
                       </div>
                     ))}
                   </div>
-                  <InfoAccordion title="financial">
+                  <InfoAccordion section="financial">
                     Annual Savings = Annual Generation &times; &#8377;7/unit (Mumbai average grid tariff). Install cost = Capacity &times; &#8377;60,000/kWp (Maharashtra, 2024). Payback = Install cost &divide; Annual savings. CO&sup2; saved = Annual generation &times; 0.82 kg CO&sup2;/kWh (India CEA grid emission factor).
                   </InfoAccordion>
                 </div>
