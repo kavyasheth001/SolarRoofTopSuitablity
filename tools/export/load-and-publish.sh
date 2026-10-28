@@ -17,6 +17,12 @@ if [ $# -gt 0 ]; then layers=("$@"); else layers=($(ls infra/data/export/*.geojs
 
 psql_bmc -qc "CREATE SCHEMA IF NOT EXISTS bmc;"
 
+# GeoServer writes only 4 decimals (~10 m) of lon/lat by default, which distorts building footprints.
+# Raise it to 8 by editing the current settings (a partial PUT would blank the other global settings).
+curl -s -u "$AUTH" -H "Accept: application/json" "$GS/rest/settings" \
+  | python -c "import json,sys; d=json.load(sys.stdin); d['global']['settings']['numDecimals']=8; print(json.dumps(d))" \
+  | curl -s -o /dev/null -w "   coordinate precision (numDecimals=8): %{http_code}\n" -u "$AUTH" -H "Content-Type: application/json" -X PUT "$GS/rest/settings" --data-binary @-
+
 # Workspace + PostGIS store (ignore "already exists").
 curl -s -o /dev/null -u "$AUTH" -H "Content-Type: application/json" -X POST "$GS/rest/workspaces" -d '{"workspace":{"name":"bmc"}}' || true
 curl -s -o /dev/null -u "$AUTH" -H "Content-Type: application/json" -X POST "$GS/rest/workspaces/bmc/datastores" -d "{\"dataStore\":{\"name\":\"postgis\",\"connectionParameters\":{\"entry\":[

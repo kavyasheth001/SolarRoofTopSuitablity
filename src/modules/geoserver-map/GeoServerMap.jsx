@@ -12,24 +12,17 @@ import TileWMS from 'ol/source/TileWMS';
 import { fromLonLat, toLonLat } from 'ol/proj';
 import 'ol/ol.css';
 import registry from './layers/registry.json';
+import { GEOSERVER, STATIC, SEASONS, seasonMonthDay } from './config';
+import SolarPanel, { buildingName } from './solar/SolarPanel';
 
 window.CESIUM_BASE_URL = `${import.meta.env.BASE_URL.replace(/\/$/, '')}/cesium/`;
 
-const GEOSERVER = import.meta.env.VITE_GEOSERVER_URL || 'http://localhost:8600/geoserver';
-// Local static server (infra nginx): quantized-mesh terrain built from Copernicus GLO-30 for the Mumbai region.
-const STATIC = import.meta.env.VITE_STATIC_URL || 'http://localhost:8601';
 const TERRAIN_URL = `${STATIC}/terrain/mumbai-cop30`;
 const HILLSHADE_LAYER = `${registry.workspace}:mumbai_hillshade`;
 const DEM_CREDIT = 'Terrain: Copernicus DEM GLO-30 © DLR e.V. 2010-2014 and © Airbus Defence and Space GmbH 2014-2018, provided under COPERNICUS by the EU and ESA';
 const FS_CENTER = [72.8506, 18.9975];
 const IST_OFFSET_H = 5.5;
-
-const SEASONS = {
-  today: null,
-  summer: [5, 21],
-  equinox: [2, 21],
-  winter: [11, 21],
-};
+const SHADOW_CASTER = Cesium.Color.fromCssColorString('#e11d48'); // distinct from the amber height classes
 
 // Registry order is draw order (bottom → top), so the WMS LAYERS list keeps it.
 const wmsList = (visible, skip = []) =>
@@ -46,7 +39,7 @@ function heightColor(h) {
 
 function istToJulian(season, hour) {
   const now = new Date();
-  const [m, d] = SEASONS[season] || [now.getMonth(), now.getDate()];
+  const [m, d] = seasonMonthDay(season);
   const minutes = Math.round((hour - IST_OFFSET_H) * 60);
   return Cesium.JulianDate.fromDate(new Date(Date.UTC(now.getFullYear(), m, d, 0, minutes)));
 }
@@ -80,17 +73,21 @@ async function sampleGroundHeights(terrainProvider, features) {
   }
 }
 
+// Returns the primitive and, per feature, the ids of its geometry instances (needed to recolour it).
 function buildPrimitive(features, groundHeights) {
   const instances = [];
+  const instanceIds = features.map(() => []);
   features.forEach((f, i) => {
     const h = Math.max(Number(f.properties.height) || 3, 3);
     const base = groundHeights[i] || 0;
     const polys = f.geometry.type === 'MultiPolygon' ? f.geometry.coordinates : [f.geometry.coordinates];
     polys.forEach((rings, j) => {
+      const id = { index: i, part: j };
+      instanceIds[i].push(id);
       const outer = Cesium.Cartesian3.fromDegreesArray(rings[0].flat());
       const holes = rings.slice(1).map((r) => new Cesium.PolygonHierarchy(Cesium.Cartesian3.fromDegreesArray(r.flat())));
       instances.push(new Cesium.GeometryInstance({
-        id: { index: i, part: j },
+        id,
         geometry: new Cesium.PolygonGeometry({
           polygonHierarchy: new Cesium.PolygonHierarchy(outer, holes),
           height: base,
@@ -101,13 +98,14 @@ function buildPrimitive(features, groundHeights) {
       }));
     });
   });
-  return new Cesium.Primitive({
+  const primitive = new Cesium.Primitive({
     geometryInstances: instances,
     appearance: new Cesium.PerInstanceColorAppearance({ translucent: false, closed: true, flat: false }),
     shadows: Cesium.ShadowMode.ENABLED,
     releaseGeometryInstances: false,
     asynchronous: true,
   });
+  return { primitive, instanceIds };
 }
 
 export default function GeoServerMap() {
@@ -116,7 +114,13 @@ export default function GeoServerMap() {
   const viewerRef = useRef(null);
   const featuresRef = useRef([]);
   const primitiveRef = useRef(null);
-  const selectedRef = useRef(null);
+  const instanceIdsRef = useRef([]);
+  const groundRef = useRef([]);
+  const gidIndexRef = useRef(new Map()); // WFS feature id -> index in featuresRef
+  const selectedIndexRef = useRef(null);
+  const tintRef = useRef(new Set()); // indices drawn as shadow casters
+  const interactionRef = useRef(null); // 'draw' while the solar tool is drawing a footprint
+  const solarOpenRef = useRef(false);
   const [status, setStatus] = useState('Loading buildings from GeoServer…');
   const [count, setCount] = useState(0);
   const [hour, setHour] = useState(9);
@@ -126,8 +130,62 @@ export default function GeoServerMap() {
   const [visible, setVisible] = useState(() => new Set(registry.layers.filter((l) => l.visible).map((l) => l.id)));
   const [counts, setCounts] = useState({});
   const [panelOpen, setPanelOpen] = useState(true);
+  const [solarOpen, setSolarOpen] = useState(false);
+  solarOpenRef.current = solarOpen;
   const olWmsRef = useRef(null);
   const csOverlayRef = useRef(null);
+
+  // Building colour: selected (cyan) > shadow caster (red) > height class.
+  const paint = (index) => {
+    const prim = primitiveRef.current;
+    const f = featuresRef.current[index];
+    if (!prim?.ready || !f) return;
+    const color = selectedIndexRef.current === index ? Cesium.Color.CYAN
+      : tintRef.current.has(index) ? SHADOW_CASTER : heightColor(Math.max(Number(f.properties.height) || 3, 3));
+    instanceIdsRef.current[index]?.forEach((id) => {
+      const attrs = prim.getGeometryInstanceAttributes(id);
+      if (attrs) attrs.color = Cesium.ColorGeometryInstanceAttribute.toValue(color);
+    });
+    viewerRef.current?.scene.requestRender();
+  };
+
+  const selectIndex = (index) => {
+    const prev = selectedIndexRef.current;
+    selectedIndexRef.current = index;
+    if (prev != null) paint(prev);
+    if (index == null) { setPicked(null); return; }
+    paint(index);
+    setPicked({ index, feature: featuresRef.current[index] });
+  };
+
+  const flyToFeature = (feature, pitchDeg = -35) => {
+    const ring = (feature.geometry.type === 'MultiPolygon' ? feature.geometry.coordinates[0] : feature.geometry.coordinates)[0];
+    const lon = ring.reduce((s, c) => s + c[0], 0) / ring.length;
+    const lat = ring.reduce((s, c) => s + c[1], 0) / ring.length;
+    const h = Math.max(Number(feature.properties.height) || 10, 10);
+    const range = pitchDeg < -50 ? Math.max(260, h * 3) : Math.max(180, h * 2.6);
+    viewerRef.current?.camera.flyToBoundingSphere(new Cesium.BoundingSphere(Cesium.Cartesian3.fromDegrees(lon, lat, h / 2), h), {
+      offset: new Cesium.HeadingPitchRange(Cesium.Math.toRadians(20), Cesium.Math.toRadians(pitchDeg), range),
+      duration: 1.4,
+    });
+  };
+
+  // Solar tool hooks: select a WFS feature (search result), fly to a building, mark shadow casters.
+  const selectFeature = (feature) => {
+    const index = gidIndexRef.current.get(feature.id);
+    if (index == null) return;
+    selectIndex(index);
+    flyToFeature(featuresRef.current[index]);
+  };
+  const focusKey = (key, pitchDeg) => {
+    const index = gidIndexRef.current.get(key);
+    if (index != null) flyToFeature(featuresRef.current[index], pitchDeg);
+  };
+  const tintBuildings = (keys) => {
+    const old = [...tintRef.current];
+    tintRef.current = new Set(keys.map((k) => gidIndexRef.current.get(k)).filter((i) => i != null));
+    [...old, ...tintRef.current].forEach(paint);
+  };
 
   const toggleLayer = (id) => setVisible((prev) => {
     const next = new Set(prev);
@@ -161,6 +219,8 @@ export default function GeoServerMap() {
     if (import.meta.env.DEV) window.__geoserverMapViewer = viewer; // inspection aid in dev only
     viewer.scene.globe.enableLighting = true;
     viewer.scene.globe.depthTestAgainstTerrain = true;
+    // Double-click is used to finish drawing a footprint, not to zoom to an entity.
+    viewer.cesiumWidget.screenSpaceEventHandler.removeInputAction(Cesium.ScreenSpaceEventType.LEFT_DOUBLE_CLICK);
 
     // Relief shading from our GeoServer (transparent on flat ground), above the OSM base and below data layers.
     viewer.imageryLayers.addImageryProvider(new Cesium.WebMapServiceImageryProvider({
@@ -195,12 +255,15 @@ export default function GeoServerMap() {
       .then(async ([fc, terrainProvider]) => {
         if (cancelled) return;
         featuresRef.current = fc.features;
+        gidIndexRef.current = new Map(fc.features.map((f, i) => [f.id, i]));
         setCount(fc.features.length);
         const groundHeights = await sampleGroundHeights(terrainProvider, fc.features);
+        groundRef.current = groundHeights;
         if (terrainProvider) terrainLabel = 'local Copernicus terrain';
         if (cancelled) return;
-        const prim = buildPrimitive(fc.features, groundHeights);
+        const { primitive: prim, instanceIds } = buildPrimitive(fc.features, groundHeights);
         primitiveRef.current = prim;
+        instanceIdsRef.current = instanceIds;
         viewer.scene.primitives.add(prim);
         return prim.readyPromise ?? new Promise((resolve) => {
           const remove = viewer.scene.postRender.addEventListener(() => { if (prim.ready) { remove(); resolve(); } });
@@ -211,19 +274,11 @@ export default function GeoServerMap() {
 
     const handler = new Cesium.ScreenSpaceEventHandler(viewer.scene.canvas);
     handler.setInputAction((e) => {
+      if (interactionRef.current === 'draw') return;
       const hit = viewer.scene.pick(e.position);
-      const prim = primitiveRef.current;
-      if (selectedRef.current && prim) {
-        const { id, color } = selectedRef.current;
-        prim.getGeometryInstanceAttributes(id).color = Cesium.ColorGeometryInstanceAttribute.toValue(color);
-        selectedRef.current = null;
-      }
-      if (!hit || hit.primitive !== prim || !hit.id) { setPicked(null); return; }
-      const props = featuresRef.current[hit.id.index].properties;
-      const attrs = prim.getGeometryInstanceAttributes(hit.id);
-      selectedRef.current = { id: hit.id, color: heightColor(Math.max(Number(props.height) || 3, 3)) };
-      attrs.color = Cesium.ColorGeometryInstanceAttribute.toValue(Cesium.Color.CYAN);
-      setPicked(props);
+      if (hit && hit.primitive === primitiveRef.current && hit.id) { selectIndex(hit.id.index); return; }
+      // With the solar tool open, a click beside a building (ground, roof heatmap) keeps the selection.
+      if (!solarOpenRef.current) selectIndex(null);
     }, Cesium.ScreenSpaceEventType.LEFT_CLICK);
 
     return () => { cancelled = true; handler.destroy(); viewer.destroy(); };
@@ -295,8 +350,10 @@ export default function GeoServerMap() {
     viewer.scene.requestRender();
   }, [hour, season, shadows]);
 
-  const hh = Math.floor(hour);
-  const mm = String(Math.round((hour % 1) * 60)).padStart(2, '0');
+  const pickedProps = picked?.feature.properties;
+  const minutes = Math.round(hour * 60);
+  const hh = Math.floor(minutes / 60);
+  const mm = String(minutes % 60).padStart(2, '0');
 
   return (
     <div style={{ position: 'fixed', inset: 0, display: 'flex', flexDirection: 'column', background: '#0f172a', fontFamily: 'Inter, Segoe UI, sans-serif' }}>
@@ -304,25 +361,25 @@ export default function GeoServerMap() {
         <strong style={{ fontSize: 15 }}>SolarSight · GeoServer Map · F/S ward</strong>
         <span style={{ opacity: 0.8 }}>PostGIS → GeoServer 3.0.2 → OpenLayers + CesiumJS (no ArcGIS SDK)</span>
         <span style={{ marginLeft: 'auto', opacity: 0.9 }}>{count.toLocaleString('en-IN')} buildings · {status}</span>
+        <button onClick={() => setSolarOpen((o) => !o)} style={{ padding: '5px 12px', background: solarOpen ? '#facc15' : '#f59e0b', color: '#1e293b', border: 'none', borderRadius: 6, fontWeight: 700, cursor: 'pointer' }}>
+          ☀ Solar Suitability
+        </button>
       </div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '6px 14px', background: '#f8fafc', fontSize: 12, color: '#0f172a', flexWrap: 'wrap' }}>
         <label>Day&nbsp;
           <select value={season} onChange={(e) => setSeason(e.target.value)}>
-            <option value="today">Today</option>
-            <option value="summer">Summer solstice (21 Jun)</option>
-            <option value="equinox">Equinox (21 Mar)</option>
-            <option value="winter">Winter solstice (21 Dec)</option>
+            {Object.entries(SEASONS).map(([id, s]) => <option key={id} value={id}>{s.label}</option>)}
           </select>
         </label>
         <label style={{ display: 'flex', alignItems: 'center', gap: 6 }}>Time (IST) 6:00
-          <input type="range" min={6} max={18.5} step={0.25} value={hour} onChange={(e) => setHour(Number(e.target.value))} style={{ width: 220 }} />
-          18:30 <strong style={{ minWidth: 44 }}>{hh}:{mm}</strong>
+          <input type="range" min={6} max={19} step={0.05} value={hour} onChange={(e) => setHour(Number(e.target.value))} style={{ width: 220 }} />
+          19:00 <strong style={{ minWidth: 44 }}>{hh}:{mm}</strong>
         </label>
         <label><input type="checkbox" checked={shadows} onChange={(e) => setShadows(e.target.checked)} /> Shadows</label>
         <span style={{ color: '#64748b' }}>Click a building in 3D for its attributes · click the 2D map to fly there</span>
       </div>
       <div style={{ flex: 1, display: 'flex', minHeight: 0 }}>
-        <div style={{ position: 'relative', width: '38%', height: '100%', borderRight: '2px solid #1e3a5f' }}>
+        <div style={{ position: 'relative', width: solarOpen ? '26%' : '38%', height: '100%', borderRight: '2px solid #1e3a5f' }}>
           <div ref={olRef} style={{ position: 'absolute', inset: 0 }} />
           <div style={{ position: 'absolute', top: 8, right: 8, width: panelOpen ? 250 : 'auto', maxHeight: 'calc(100% - 16px)', overflowY: 'auto', background: 'rgba(255,255,255,0.97)', borderRadius: 8, boxShadow: '0 4px 16px rgba(0,0,0,0.2)', fontSize: 12, color: '#0f172a' }}>
             <button onClick={() => setPanelOpen((o) => !o)} style={{ width: '100%', display: 'flex', justifyContent: 'space-between', padding: '7px 10px', background: '#1e3a5f', color: '#fff', border: 'none', borderRadius: panelOpen ? '8px 8px 0 0' : 8, cursor: 'pointer', fontWeight: 600 }}>
@@ -347,15 +404,15 @@ export default function GeoServerMap() {
         </div>
         <div style={{ position: 'relative', flex: 1 }}>
           <div ref={csRef} style={{ position: 'absolute', inset: 0 }} />
-          {picked && (
+          {picked && !solarOpen && (
             <div style={{ position: 'absolute', top: 12, right: 12, width: 280, background: 'rgba(255,255,255,0.96)', borderRadius: 8, padding: '10px 12px', fontSize: 12, color: '#0f172a', boxShadow: '0 6px 20px rgba(0,0,0,0.25)' }}>
-              <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 6 }}>{picked.name?.trim() || `Building #${picked.bld_id}`}</div>
+              <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 6 }}>{buildingName(pickedProps)}</div>
               {[
-                ['Class', `${picked.class || '—'} / ${picked.sub_class || '—'}`],
-                ['Floors', picked.no_floors || '—'],
-                ['Height', picked.height ? `${Number(picked.height).toFixed(1)} m` : '—'],
-                ['Footprint', picked.area_sqmtr ? `${Math.round(picked.area_sqmtr).toLocaleString('en-IN')} m²` : '—'],
-                ['Building ID', picked.bld_id || '—'],
+                ['Class', `${pickedProps.class || '—'} / ${pickedProps.sub_class || '—'}`],
+                ['Floors', pickedProps.no_floors || '—'],
+                ['Height', pickedProps.height ? `${Number(pickedProps.height).toFixed(1)} m` : '—'],
+                ['Footprint', pickedProps.area_sqmtr ? `${Math.round(pickedProps.area_sqmtr).toLocaleString('en-IN')} m²` : '—'],
+                ['Building ID', pickedProps.bld_id || '—'],
               ].map(([k, v]) => (
                 <div key={k} style={{ display: 'flex', justifyContent: 'space-between', padding: '3px 0', borderTop: '1px solid #e2e8f0' }}>
                   <span style={{ color: '#64748b' }}>{k}</span><span style={{ fontWeight: 600, textAlign: 'right' }}>{v}</span>
@@ -364,6 +421,21 @@ export default function GeoServerMap() {
             </div>
           )}
         </div>
+        {solarOpen && (
+          <SolarPanel
+            viewerRef={viewerRef}
+            interactionRef={interactionRef}
+            selected={picked}
+            onSelectFeature={selectFeature}
+            onFocusKey={focusKey}
+            groundOf={(index) => groundRef.current[index] || 0}
+            tintBuildings={tintBuildings}
+            season={season}
+            setSeason={setSeason}
+            setHour={setHour}
+            onClose={() => setSolarOpen(false)}
+          />
+        )}
       </div>
     </div>
   );
