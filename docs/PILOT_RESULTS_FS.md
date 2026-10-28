@@ -51,6 +51,27 @@ bus stops, parking, DP reservation, slum boundary) are listed with reasons under
 Layer list, groups, titles, draw order and styles live in one place, `src/modules/geoserver-map/layers/registry.json`,
 which both the map and `tools/export/apply-styles.py` read.
 
+## 3D terrain and hillshade (replaces ArcGIS World Elevation + World Hillshade)
+
+| Item | Result |
+|---|---|
+| Source | Copernicus DEM GLO-30 (open data, AWS), only the Mumbai-region window read via GDAL `/vsicurl/` |
+| Coverage | 72.60–73.25°E, 18.70–19.55°N: all of Greater Mumbai (wards span 72.776–72.981°E, 18.894–19.270°N) plus Thane creek, Navi Mumbai, Elephanta, Vasai/Yeoor hills |
+| Grid | 2340 × 3060 cells at 30 m, 100 % valid, −11.5 to 812 m |
+| Heights | Relative to mean sea level (EGM2008), so the sea joins the flat globe with no step. Vendor 3D Tiles in ellipsoidal heights will need a fixed +67 m offset at Mumbai |
+| Terrain tiles | 6,286 gzip quantized-mesh tiles (zoom 0–14, vertex normals), 22 MB, served by nginx at `http://localhost:8601/terrain/mumbai-cop30` |
+| Hillshade | GeoServer raster `bmc:mumbai_hillshade`, style keeps flat ground transparent so only ridges and valleys shade the basemap |
+| In the map | Cesium uses the local terrain; every F/S building is placed on the sampled ground height; hillshade is under the data layers in both 2D and 3D |
+| Spot checks | Sea 0 m, Parel 16.8 m, Malabar Hill 57.6 m, SGNP ridge sample 139.8 m |
+
+Rebuild everything with `bash tools/terrain/build-terrain.sh` (about 70 s). Copernicus DEM is a surface model,
+so dense high-rise blocks are slightly raised at 30 m resolution; swap in BMC's bare-earth DEM GeoTIFF when it
+is supplied (same script, different input).
+
+Two lessons fixed in config:
+- cesium-terrain-builder writes gzip tiles, so nginx must send `Content-Encoding: gzip` for `.terrain`.
+- Terrain tiles are served with `Cache-Control: no-cache`, so browsers never keep a stale or wrongly-encoded copy.
+
 ## How to run it again
 
 ```bash

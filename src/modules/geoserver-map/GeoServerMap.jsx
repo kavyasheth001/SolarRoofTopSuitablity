@@ -16,6 +16,11 @@ import registry from './layers/registry.json';
 window.CESIUM_BASE_URL = `${import.meta.env.BASE_URL.replace(/\/$/, '')}/cesium/`;
 
 const GEOSERVER = import.meta.env.VITE_GEOSERVER_URL || 'http://localhost:8600/geoserver';
+// Local static server (infra nginx): quantized-mesh terrain built from Copernicus GLO-30 for the Mumbai region.
+const STATIC = import.meta.env.VITE_STATIC_URL || 'http://localhost:8601';
+const TERRAIN_URL = `${STATIC}/terrain/mumbai-cop30`;
+const HILLSHADE_LAYER = `${registry.workspace}:mumbai_hillshade`;
+const DEM_CREDIT = 'Terrain: Copernicus DEM GLO-30 © DLR e.V. 2010-2014 and © Airbus Defence and Space GmbH 2014-2018, provided under COPERNICUS by the EU and ESA';
 const FS_CENTER = [72.8506, 18.9975];
 const IST_OFFSET_H = 5.5;
 
@@ -57,10 +62,29 @@ async function fetchBuildings() {
   return res.json();
 }
 
-function buildPrimitive(features) {
+// Ground height under each building, sampled from the terrain at the footprint's first-ring centroid,
+// so blocks sit on the hills instead of on the flat ellipsoid.
+async function sampleGroundHeights(terrainProvider, features) {
+  if (!terrainProvider || terrainProvider instanceof Cesium.EllipsoidTerrainProvider) return features.map(() => 0);
+  const points = features.map((f) => {
+    const ring = (f.geometry.type === 'MultiPolygon' ? f.geometry.coordinates[0] : f.geometry.coordinates)[0];
+    const lon = ring.reduce((s, c) => s + c[0], 0) / ring.length;
+    const lat = ring.reduce((s, c) => s + c[1], 0) / ring.length;
+    return Cesium.Cartographic.fromDegrees(lon, lat);
+  });
+  try {
+    const sampled = await Cesium.sampleTerrainMostDetailed(terrainProvider, points);
+    return sampled.map((p) => (Number.isFinite(p.height) ? p.height : 0));
+  } catch {
+    return features.map(() => 0);
+  }
+}
+
+function buildPrimitive(features, groundHeights) {
   const instances = [];
   features.forEach((f, i) => {
     const h = Math.max(Number(f.properties.height) || 3, 3);
+    const base = groundHeights[i] || 0;
     const polys = f.geometry.type === 'MultiPolygon' ? f.geometry.coordinates : [f.geometry.coordinates];
     polys.forEach((rings, j) => {
       const outer = Cesium.Cartesian3.fromDegreesArray(rings[0].flat());
@@ -69,8 +93,8 @@ function buildPrimitive(features) {
         id: { index: i, part: j },
         geometry: new Cesium.PolygonGeometry({
           polygonHierarchy: new Cesium.PolygonHierarchy(outer, holes),
-          height: 0,
-          extrudedHeight: h,
+          height: base,
+          extrudedHeight: base + h,
           vertexFormat: Cesium.PerInstanceColorAppearance.VERTEX_FORMAT,
         }),
         attributes: { color: Cesium.ColorGeometryInstanceAttribute.fromColor(heightColor(h)) },
@@ -127,14 +151,31 @@ export default function GeoServerMap() {
   // 3D: CesiumJS
   useEffect(() => {
     const viewer = new Cesium.Viewer(csRef.current, {
-      baseLayer: new Cesium.ImageryLayer(new Cesium.OpenStreetMapImageryProvider({ url: 'https://tile.openstreetmap.org/' })),
+      baseLayer: new Cesium.ImageryLayer(new Cesium.OpenStreetMapImageryProvider({ url: 'https://tile.openstreetmap.org/', maximumLevel: 19 })),
       terrainProvider: new Cesium.EllipsoidTerrainProvider(),
       baseLayerPicker: false, geocoder: false, homeButton: false, sceneModePicker: false,
       navigationHelpButton: false, animation: false, timeline: false, fullscreenButton: false,
       infoBox: false, selectionIndicator: false, shadows: true,
     });
     viewerRef.current = viewer;
+    if (import.meta.env.DEV) window.__geoserverMapViewer = viewer; // inspection aid in dev only
     viewer.scene.globe.enableLighting = true;
+    viewer.scene.globe.depthTestAgainstTerrain = true;
+
+    // Relief shading from our GeoServer (transparent on flat ground), above the OSM base and below data layers.
+    viewer.imageryLayers.addImageryProvider(new Cesium.WebMapServiceImageryProvider({
+      url: `${GEOSERVER}/${registry.workspace}/wms`,
+      layers: HILLSHADE_LAYER,
+      parameters: { transparent: true, format: 'image/png' },
+    }));
+
+    // 3D terrain from the local static server; stays on the flat ellipsoid if it is unavailable.
+    const terrainReady = Cesium.CesiumTerrainProvider.fromUrl(TERRAIN_URL, { requestVertexNormals: true, credit: DEM_CREDIT })
+      .then((provider) => {
+        if (!viewer.isDestroyed()) viewer.terrainProvider = provider;
+        return provider;
+      })
+      .catch(() => null);
     // Higher-resolution, shorter-range shadow map removes the striping ("shadow acne") on walls.
     viewer.scene.shadowMap.size = 4096;
     viewer.scene.shadowMap.softShadows = false;
@@ -148,20 +189,24 @@ export default function GeoServerMap() {
     });
 
     let cancelled = false;
+    let terrainLabel = 'flat ellipsoid';
     const t0 = performance.now();
-    fetchBuildings()
-      .then((fc) => {
+    Promise.all([fetchBuildings(), terrainReady])
+      .then(async ([fc, terrainProvider]) => {
         if (cancelled) return;
         featuresRef.current = fc.features;
         setCount(fc.features.length);
-        const prim = buildPrimitive(fc.features);
+        const groundHeights = await sampleGroundHeights(terrainProvider, fc.features);
+        if (terrainProvider) terrainLabel = 'local Copernicus terrain';
+        if (cancelled) return;
+        const prim = buildPrimitive(fc.features, groundHeights);
         primitiveRef.current = prim;
         viewer.scene.primitives.add(prim);
         return prim.readyPromise ?? new Promise((resolve) => {
           const remove = viewer.scene.postRender.addEventListener(() => { if (prim.ready) { remove(); resolve(); } });
         });
       })
-      .then(() => !cancelled && setStatus(`Loaded from GeoServer WFS in ${((performance.now() - t0) / 1000).toFixed(1)} s`))
+      .then(() => !cancelled && setStatus(`Loaded from GeoServer WFS on ${terrainLabel} in ${((performance.now() - t0) / 1000).toFixed(1)} s`))
       .catch((err) => !cancelled && setStatus(`Failed: ${err.message} (is GeoServer running on ${GEOSERVER}?)`));
 
     const handler = new Cesium.ScreenSpaceEventHandler(viewer.scene.canvas);
@@ -196,9 +241,17 @@ export default function GeoServerMap() {
       opacity: 0.9,
     });
     olWmsRef.current = wms;
+    const hillshade = new TileLayer({
+      source: new TileWMS({
+        url: `${GEOSERVER}/${registry.workspace}/wms`,
+        params: { LAYERS: HILLSHADE_LAYER, TILED: true, TRANSPARENT: true },
+        serverType: 'geoserver',
+        crossOrigin: 'anonymous',
+      }),
+    });
     const map = new OlMap({
       target: olRef.current,
-      layers: [new TileLayer({ source: new OSM() }), wms],
+      layers: [new TileLayer({ source: new OSM() }), hillshade, wms],
       view: new OlView({ center: fromLonLat(FS_CENTER), zoom: 14 }),
     });
     map.on('singleclick', (e) => {
